@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DocFinder</title>
+<link rel="icon" type="image/svg+xml" href="shared/assets/favicon.svg">
+<!--
+  대시보드는 워크스페이스(tool.html)로 통합됐습니다.
+  검색/정리/아침 리포트는 상단 모드 스위처, 사용량·설정·플랜·로그아웃은 우상단 아바타 메뉴에 있습니다.
+  이 페이지는 기존 링크(‘대시보드로’, 결제 후 리다이렉트 등) 호환을 위해 tool.html로 넘겨줍니다.
+  ?upgraded= 같은 쿼리와 해시도 그대로 전달합니다.
+-->
+<script>location.replace('tool.html' + location.search + location.hash);</script>
+</head>
+<body></body>
+</html>

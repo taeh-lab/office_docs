@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>요금제 · DocFinder</title>
+<link rel="icon" type="image/svg+xml" href="shared/assets/favicon.svg">
+<link rel="stylesheet" href="shared/theme.css">
+<script src="shared/components/theme-toggle.js"></script>
+<style>
+  .head{text-align:center;padding:44px 0 8px;}
+  .head h1{font-size:30px;}
+  .head p{color:var(--muted);font-size:15px;}
+
+  .plans{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin:32px 0;}
+  .plan{background:var(--white);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:22px 18px;display:flex;flex-direction:column;}
+  .plan.featured{
+    border-color:var(--accent);position:relative;transform:translateY(-8px);
+    box-shadow:0 1px 2px rgba(0,0,0,.05), 0 26px 52px -20px color-mix(in srgb, var(--accent) 55%, transparent);
+  }
+  .plan.featured::after{
+    content:"";position:absolute;inset:-1px;border-radius:var(--radius);pointer-events:none;
+    box-shadow:inset 0 0 0 1px var(--accent);
+  }
+  .plan.featured::before{
+    content:"추천";position:absolute;top:-11px;left:50%;transform:translateX(-50%);
+    background:var(--accent);color:#fff;letter-spacing:.02em;
+    font-size:11px;font-weight:700;padding:4px 12px;border-radius:20px;white-space:nowrap;
+  }
+  @media(max-width:860px){ .plan.featured{transform:none;} }
+  .plan h2{font-size:16px;margin:0 0 4px;}
+  .plan .price{font-size:26px;font-weight:800;margin:12px 0 4px;letter-spacing:-.02em;}
+  .plan .price span{font-size:13px;font-weight:500;color:var(--muted);}
+  .plan .desc{font-size:12px;color:var(--muted);margin-bottom:16px;min-height:32px;}
+  .plan ul{list-style:none;padding:0;margin:0 0 20px;font-size:13px;flex:1;}
+  .plan li{padding:6px 0;border-top:1px solid var(--line);display:flex;gap:7px;}
+  .plan li:first-child{border-top:none;}
+  .plan li::before{content:"✓";color:var(--accent);font-weight:700;}
+  .plan button{font-size:13px;padding:9px 14px;}
+
+  .test-note{
+    max-width:640px;margin:0 auto 50px;text-align:center;font-size:12px;color:var(--muted);
+    padding:12px 16px;background:var(--accent-soft);border-radius:8px;
+  }
+  .test-note code{font-family:var(--mono);background:var(--white);padding:1px 5px;border-radius:3px;}
+
+  @media(max-width:860px){ .plans{grid-template-columns:1fr 1fr;} }
+  @media(max-width:520px){ .plans{grid-template-columns:1fr;} }
+</style>
+</head>
+<body>
+<script src="shared/components/icons.js"></script>
+
+<nav class="site-nav">
+  <a href="index.html" class="brand">DocFinder</a>
+  <div class="links">
+    <button type="button" class="theme-toggle btn btn-ghost" style="padding:7px 10px;font-size:12px;"><svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg>다크 모드</button>
+    <button type="button" class="cmdk-trigger" onclick="CommandPalette.open()"><svg class="icon" aria-hidden="true"><use href="#i-search"></use></svg><kbd>⌘K</kbd></button>
+    <span id="navLinks" style="display:contents">
+      <a href="pricing.html">요금제</a>
+      <a href="login.html">로그인</a>
+      <a href="signup.html" class="btn btn-primary" style="padding:8px 16px;font-size:13px;">무료로 시작</a>
+    </span>
+  </div>
+</nav>
+
+<div class="wrap">
+  <div class="head">
+    <h1>필요한 만큼만</h1>
+    <p>무료로 시작하고, 더 필요할 때 언제든 올리거나 내릴 수 있어요</p>
+  </div>
+
+  <div class="plans" id="plans"></div>
+
+  <div class="test-note">
+    이 프로젝트는 포트폴리오 데모라 결제는 Stripe <strong>테스트 모드</strong>로 연결됩니다 — 실제 카드 청구는 발생하지 않습니다.
+    결제 흐름을 직접 확인하려면 테스트 카드 <code>4242 4242 4242 4242</code> (임의의 미래 날짜 / CVC)를 사용하세요.
+  </div>
+</div>
+
+<footer class="site-footer">© 2026 DocFinder · 개인 포트폴리오 프로젝트</footer>
+
+<script src="shared/config.js"></script>
+<script src="shared/auth.js"></script>
+<script src="shared/components/command-palette.js"></script>
+<script>
+  const u = getUser();
+  if (u) {
+    document.getElementById('navLinks').innerHTML =
+      `<span style="font-size:13px;color:var(--muted)">${u.name || u.email}님</span>` +
+      `<a href="dashboard.html" class="btn btn-primary" style="padding:8px 16px;font-size:13px;">대시보드로</a>`;
+  }
+
+  // 카드 내용 — PLANS(공통 설정)에 없는 문구(설명/기능 목록)만 여기서 관리
+  // 크레딧(토큰) 모델: 모든 기능은 전 플랜 공통, 기능 잠금 없음. 차이는 월 크레딧 양뿐.
+  // 크레딧 양은 config.js의 PLANS[key].credits, 과금 방식은 CREDIT_MODEL(용량 비례).
+  const nf = n => n.toLocaleString('ko-KR');
+  const kb = Math.round(CREDIT_MODEL.bytesPerCredit / 1024);
+  const CARD_COPY = {
+    free:   { desc:'가볍게 써보기 좋은 무료 플랜',   features:[`월 ${nf(PLANS.free.credits)} 크레딧`, '모든 기능 · 잠금 없음', `업로드 무제한 · 용량만큼만 (${kb}KB당 1)`, '매달 1일 자동 충전'] },
+    basic:  { desc:'스캔·검색을 매일 쓰는 개인용',    features:[`월 ${nf(PLANS.basic.credits)} 크레딧`, '모든 기능 · 잠금 없음', '스캔 OCR · 드라이브 자동 수집', '아침 리포트 예약'] },
+    middle: { desc:'팀 단위로 매일 돌리는 규모',      features:[`월 ${nf(PLANS.middle.credits)} 크레딧`, '모든 기능 · 잠금 없음', 'Basic의 3배 여유', '팀 규모 자동화'] },
+    high:   { desc:'헤비 유저 · 자동화 풀가동',       features:[`월 ${nf(PLANS.high.credits)} 크레딧`, '모든 기능 · 잠금 없음', '아침 리포트 매일 돌려도 충분', '가장 넉넉한 크레딧'] },
+  };
+
+  const plansEl = document.getElementById('plans');
+  Object.entries(PLANS).forEach(([key, info])=>{
+    const isFree = key === 'free';
+    const featured = key === 'basic';
+    const copy = CARD_COPY[key];
+    const card = document.createElement('div');
+    card.className = 'plan' + (featured ? ' featured' : '');
+    card.innerHTML = `
+      <h2>${info.label}</h2>
+      <div class="desc">${copy.desc}</div>
+      <div class="price">${info.priceLabel.split(' / ')[0]}<span> / 월</span></div>
+      <ul>${copy.features.map(f=>`<li>${f}</li>`).join('')}</ul>
+      <button class="btn ${featured ? 'btn-primary' : 'btn-ghost'} btn-block" data-plan="${key}">
+        ${isFree ? '무료로 시작하기' : info.label + ' 시작하기'}
+      </button>`;
+    plansEl.appendChild(card);
+  });
+
+  plansEl.addEventListener('click', async (e)=>{
+    const btn = e.target.closest('button[data-plan]');
+    if(!btn) return;
+    const plan = btn.dataset.plan;
+
+    if(plan === 'free'){
+      location.href = u ? 'dashboard.html' : 'signup.html';
+      return;
+    }
+
+    const user = getUser();
+    if(!user){ location.href = `login.html?next=pricing.html`; return; }
+
+    btn.disabled = true;
+    btn.textContent = '연결 중…';
+
+    try{
+      const resp = await fetch('/api/create-checkout-session', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ email: user.email, plan })
+      });
+      if(resp.ok){
+        const data = await resp.json();
+        if(data.url){ location.href = data.url; return; }
+      }
+      // resp가 실패(Stripe 미설정 등)면 아래 폴백으로 넘어감
+    }catch(err){
+      // 네트워크 오류 → 폴백
+    }
+
+    // 폴백: 해당 플랜의 Stripe Price ID가 설정 안 됐을 때 — 로컬에서 바로 처리하는 데모 업그레이드
+    user.plan = plan;
+    setUser(user);
+    alert(`Stripe 테스트 키/Price ID가 설정되지 않아 데모 업그레이드로 처리했어요.\nSETUP-TODO.md의 STRIPE_PRICE_${plan.toUpperCase()}를 설정하면 실제 Stripe Checkout으로 연결됩니다.`);
+    location.href = `dashboard.html?upgraded=${plan}`;
+  });
+</script>
+</body>
+</html>

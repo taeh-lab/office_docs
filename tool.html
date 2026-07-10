@@ -1,0 +1,1539 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>문서 단어 찾기 · 여러 문서를 한 번에</title>
+<link rel="icon" type="image/svg+xml" href="shared/assets/favicon.svg">
+
+<!-- 오픈소스 라이브러리: PDF 읽기 / 워드 읽기 / 엑셀 읽기·쓰기 -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<!-- OCR(스캔 이미지 PDF 글자 인식). 브라우저 안에서 동작 → 문서 본문은 여전히 서버로 안 나감.
+     로드 실패해도(오프라인/CDN 차단) window.Tesseract가 없을 뿐, 나머지 기능은 그대로 동작한다. -->
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
+<!-- 로그인/사용량 상태 공유용. 로그인 안 된 상태(단독 실행)에서는 getUser()가 null이라
+     아래 사용량 제한 로직이 그냥 스킵되고 기존처럼 무제한으로 동작한다. -->
+<script src="shared/config.js"></script>
+<script src="shared/auth.js"></script>
+<!-- 구글 드라이브에서 문서 불러오기 (Picker + drive.file). 설정 안 돼 있으면 버튼이 '설정 필요'로 비활성. -->
+<script src="shared/components/drive-picker.js"></script>
+<!-- 대시보드에 embed된 상태(또는 단독 실행)에서 대시보드/랜딩과 같은 다크모드 설정을
+     그대로 따르게 한다 — localStorage 값을 같이 읽으므로 별도 동기화 코드 없이 일치함. -->
+<script src="shared/components/theme-toggle.js"></script>
+<!-- 계정 메뉴(사용량 차트·토스트·커맨드 팔레트)용 공유 컴포넌트 -->
+<script src="shared/components/usage-chart.js"></script>
+<script src="shared/components/toast.js"></script>
+<script src="shared/components/command-palette.js"></script>
+
+<style>
+  :root{
+    --ink:#1a1a1a;
+    --paper:#faf9f6;
+    --line:#e2ded4;
+    --line-strong:#c9c3b5;
+    --muted:#6b6558;
+    --accent:#2f5d50;      /* 딥그린 - 문서/기록 느낌 */
+    --accent-soft:#e7efe9;
+    --hit:#fff3cf;         /* 형광펜 노랑 */
+    --hit-line:#f0d98a;
+    --danger:#b4472f;
+    --white:#ffffff;
+    --radius:10px;
+    --shadow:0 1px 2px rgba(30,25,15,.06), 0 8px 24px -12px rgba(30,25,15,.14);
+    --mono:'SFMono-Regular',ui-monospace,'DejaVu Sans Mono',Menlo,Consolas,monospace;
+    --sans:'Pretendard',-apple-system,BlinkMacSystemFont,'Segoe UI','Apple SD Gothic Neo','Malgun Gothic',sans-serif;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --ink:#f0efe9; --paper:#14171a; --line:#2a2f33; --line-strong:#3a4045; --muted:#9aa0a6;
+      --accent:#5fb99b; --accent-soft:#1b2b25; --hit:#4a4020; --hit-line:#7a6a2c;
+      --danger:#e2725a; --white:#1d2125;
+      --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.5);
+    }
+  }
+  :root[data-theme="dark"]{
+    --ink:#f0efe9; --paper:#14171a; --line:#2a2f33; --line-strong:#3a4045; --muted:#9aa0a6;
+    --accent:#5fb99b; --accent-soft:#1b2b25; --hit:#4a4020; --hit-line:#7a6a2c;
+    --danger:#e2725a; --white:#1d2125;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.5);
+  }
+  /* Pretendard 로컬 self-host (기존 @import는 :root 뒤라 무시됐음 → 시스템 폰트 폴백 버그) */
+  @font-face{font-family:'Pretendard';font-weight:400;font-display:swap;src:url('shared/assets/fonts/Pretendard-Regular.woff2') format('woff2');}
+  @font-face{font-family:'Pretendard';font-weight:600;font-display:swap;src:url('shared/assets/fonts/Pretendard-SemiBold.woff2') format('woff2');}
+  @font-face{font-family:'Pretendard';font-weight:700;font-display:swap;src:url('shared/assets/fonts/Pretendard-Bold.woff2') format('woff2');}
+  @font-face{font-family:'Pretendard';font-weight:800;font-display:swap;src:url('shared/assets/fonts/Pretendard-ExtraBold.woff2') format('woff2');}
+
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family:var(--sans);
+    background:var(--paper);
+    color:var(--ink);
+    line-height:1.55;
+    -webkit-font-smoothing:antialiased;
+  }
+  /* ── 워크스페이스 셸 ── */
+  .app{display:grid;grid-template-rows:58px 1fr;height:100vh;height:100dvh;}
+
+  .topbar{display:flex;align-items:center;gap:16px;padding:0 18px;background:var(--white);border-bottom:1px solid var(--line);}
+  .brand{display:flex;align-items:center;gap:9px;font-weight:800;font-size:16px;letter-spacing:-.02em;}
+  .brand .dot{width:9px;height:9px;border-radius:50%;background:var(--accent);}
+  .modes{display:flex;gap:2px;background:var(--paper);border:1px solid var(--line);border-radius:11px;padding:3px;margin:0 auto;}
+  .mode-btn{display:flex;align-items:center;gap:7px;border:none;background:none;cursor:pointer;font-family:var(--sans);font-size:13.5px;font-weight:600;color:var(--muted);padding:7px 15px;border-radius:8px;transition:.14s;white-space:nowrap;}
+  .mode-btn .icon{width:15px;height:15px;}
+  .mode-btn:hover{color:var(--ink);}
+  .mode-btn.on{background:var(--accent);color:#fff;box-shadow:0 1px 2px rgba(30,25,15,.12);}
+  .topright{display:flex;align-items:center;gap:12px;}
+  #creditInfo.credit{display:inline-flex;align-items:center;gap:7px;background:var(--accent-soft);border:1px solid #cfe0d6;border-radius:20px;padding:5px 13px;font-size:13px;font-weight:700;color:var(--accent);}
+  .avatar{width:32px;height:32px;border-radius:50%;background:var(--accent);color:#fff;display:grid;place-items:center;font-size:13px;font-weight:700;flex:none;}
+  button.avatar{border:none;cursor:pointer;font-family:var(--sans);}
+
+  /* 아바타 드롭다운 메뉴 */
+  .avatar-wrap{position:relative;}
+  .avatar-menu{position:absolute;top:42px;right:0;width:232px;background:var(--white);border:1px solid var(--line);border-radius:12px;box-shadow:0 20px 50px -14px rgba(0,0,0,.35);z-index:80;padding:6px;}
+  .avatar-menu[hidden]{display:none;}
+  .am-head{padding:10px 10px 12px;border-bottom:1px solid var(--line);margin-bottom:6px;}
+  .am-name{font-size:14px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .am-email{font-size:11.5px;color:var(--muted);margin:2px 0 8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .am-plan{display:inline-block;font-size:11px;font-weight:700;padding:2px 9px;border-radius:20px;background:var(--accent-soft);color:var(--accent);}
+  .am-item{display:flex;align-items:center;gap:10px;width:100%;padding:9px 10px;border-radius:8px;border:none;background:none;font-family:var(--sans);font-size:13.5px;color:var(--ink);cursor:pointer;text-align:left;text-decoration:none;}
+  .am-item:hover{background:var(--accent-soft);color:var(--accent);}
+  .am-item .icon{width:16px;height:16px;color:var(--muted);flex:none;}
+  .am-item:hover .icon{color:var(--accent);}
+  .am-sep{height:1px;background:var(--line);margin:6px 4px;}
+
+  /* 모달 (사용량 / 설정) */
+  .modal-overlay{position:fixed;inset:0;background:rgba(20,17,10,.4);z-index:100;display:grid;place-items:center;padding:20px;}
+  .modal-overlay[hidden]{display:none;}
+  .modal{width:min(460px,100%);background:var(--white);border:1px solid var(--line);border-radius:16px;box-shadow:0 30px 70px -20px rgba(0,0,0,.5);overflow:hidden;}
+  .modal[hidden]{display:none;}
+  .modal-head{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--line);}
+  .modal-head h2{font-size:16px;margin:0;font-weight:800;}
+  .modal-x{border:none;background:none;font-size:22px;line-height:1;color:var(--muted);cursor:pointer;padding:0 4px;}
+  .modal-x:hover{color:var(--ink);}
+  .modal-body{padding:20px;}
+  .modal-body .msub{font-size:12.5px;color:var(--muted);margin:0 0 4px;}
+  .modal-body .lbl2{font-size:13px;color:var(--muted);margin-top:6px;}
+  .usage-num{font-size:15px;font-weight:700;margin:2px 0;}
+  .usage-bar{height:10px;border-radius:6px;background:var(--accent-soft);overflow:hidden;margin:8px 0 6px;}
+  .usage-bar .fill{height:100%;background:var(--accent);border-radius:6px;transition:.25s;}
+  .usage-bar.over .fill{background:var(--danger);}
+  .uchart-caption{font-size:12px;color:var(--muted);margin-top:8px;}
+  /* 사용량 차트 (usage-chart.js) — tool.html은 theme.css를 안 써서 여기 복제 */
+  .uchart-wrap{position:relative;}
+  .uchart{width:100%;height:120px;display:block;overflow:visible;}
+  .uchart-bar{fill:var(--accent);transition:fill-opacity .12s ease;outline:none;cursor:pointer;}
+  .uchart-bar:hover,.uchart-bar.active,.uchart-bar:focus-visible{fill-opacity:.7;}
+  .uchart-baseline{stroke:var(--line);stroke-width:1;}
+  .uchart-tip{position:absolute;transform:translate(-50%,-100%) translateY(-8px);background:var(--ink);color:var(--paper);font-size:12px;font-weight:600;padding:5px 9px;border-radius:6px;white-space:nowrap;pointer-events:none;box-shadow:0 6px 20px -6px rgba(0,0,0,.4);z-index:5;}
+  .srow{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 0;border-top:1px solid var(--line);}
+  .srow:first-child{border-top:none;}
+  .srow .lbl{font-size:13px;color:var(--muted);}
+  .srow .val{font-size:14px;font-weight:600;}
+
+  .body{display:grid;grid-template-columns:266px 1fr;min-height:0;}
+
+  /* 좌: 문서 레일 */
+  .rail{background:var(--white);border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0;position:relative;}
+  .rail-head{display:flex;align-items:center;justify-content:space-between;padding:16px 16px 10px;}
+  .rail-head .t{font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);}
+  .rail-head .n{font-size:11px;font-weight:700;color:var(--accent);background:var(--accent-soft);border-radius:20px;padding:2px 8px;}
+  .rail-actions{padding:12px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:4px;}
+  .add{display:flex;align-items:center;gap:9px;padding:10px;border-radius:9px;cursor:pointer;font-size:13px;font-weight:600;color:var(--ink);background:none;border:1px solid transparent;font-family:var(--sans);transition:.12s;text-align:left;width:100%;}
+  .add:hover{background:var(--accent-soft);color:var(--accent);}
+  .add:disabled{opacity:.5;cursor:not-allowed;}
+  .add:disabled:hover{background:none;color:var(--ink);}
+  .add .icon{width:16px;height:16px;color:var(--accent);flex:none;}
+  .add.drag{background:var(--accent-soft);outline:2px dashed var(--accent);}
+
+  /* 우: 작업 화면 */
+  .main{min-height:0;overflow-y:auto;padding:26px 30px 44px;}
+  .main-head{margin-bottom:16px;}
+  .main-head h1{font-size:22px;margin:0 0 4px;font-weight:800;letter-spacing:-.02em;}
+  .main-head p{margin:0;font-size:13.5px;color:var(--muted);}
+  .mode-view{display:none;}
+  .mode-view.on{display:block;animation:fade .18s ease;}
+  @keyframes fade{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:none;}}
+
+  /* 프롬프트/입력 바 */
+  .prompt{display:flex;gap:10px;align-items:center;background:var(--white);border:1px solid var(--line-strong);border-radius:14px;padding:8px 8px 8px 16px;box-shadow:var(--shadow);}
+  .prompt input[type="text"]{flex:1;border:none;outline:none;box-shadow:none;padding:0;min-width:0;font-family:var(--sans);font-size:15px;background:none;color:var(--ink);}
+  .prompt input[type="text"]:focus{border:none;box-shadow:none;}
+
+  /* 레일 문서 목록 */
+  .doclist{flex:1;overflow-y:auto;padding:0 12px;display:flex;flex-direction:column;gap:4px;}
+  .doclist:empty::after{content:"아직 올린 문서가 없어요.\A아래에서 추가하세요.";white-space:pre-line;display:block;padding:22px 12px;font-size:12.5px;color:var(--muted);line-height:1.6;text-align:center;}
+  .fileitem{display:flex;align-items:center;gap:9px;padding:9px 10px;border-radius:9px;font-size:13px;border:1px solid transparent;transition:.12s;}
+  .fileitem:hover{background:var(--paper);border-color:var(--line);}
+  .fileitem .ext{font-family:var(--mono);font-size:9px;font-weight:700;padding:2px 5px;border-radius:4px;background:var(--accent-soft);color:var(--accent);text-transform:uppercase;flex:none;}
+  .fileitem .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .fileitem .st{font-size:11px;color:var(--muted);flex:none;}
+  .fileitem .st.ok{color:var(--accent);}
+  .fileitem .st.err{color:var(--danger);}
+  .fileitem .rm{border:none;background:none;color:var(--muted);cursor:pointer;font-size:16px;padding:0 2px;line-height:1;flex:none;}
+  .fileitem .rm:hover{color:var(--danger);}
+  .drive-hint{font-size:11.5px;color:var(--muted);padding:4px 6px 0;line-height:1.5;}
+
+  /* 자동 수집 팝오버 (레일 위로 뜬다) */
+  .collect-row{position:fixed;left:18px;bottom:80px;width:344px;z-index:60;background:var(--white);border:1px solid var(--line-strong);border-radius:14px;box-shadow:var(--shadow);padding:14px;}
+  .collect-title{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;color:var(--ink);margin-bottom:10px;}
+  .collect-title .icon{width:15px;height:15px;color:var(--accent);}
+  .collect-controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+  .periods{display:flex;gap:5px;flex-wrap:wrap;}
+  .period{padding:5px 10px;border-radius:20px;border:1px solid var(--line-strong);background:var(--white);color:var(--muted);font-size:12px;font-family:var(--sans);cursor:pointer;transition:.12s;}
+  .period:hover{border-color:var(--accent);}
+  .period.on{background:var(--accent);color:#fff;border-color:var(--accent);}
+  #collectResult{margin-top:12px;}
+  .collect-list{border:1px solid var(--line);border-radius:8px;overflow:hidden;max-height:230px;overflow-y:auto;}
+  .collect-item{display:flex;align-items:center;gap:9px;padding:8px 10px;font-size:12.5px;border-bottom:1px solid var(--line);cursor:pointer;margin:0;}
+  .collect-item:last-child{border-bottom:none;}
+  .collect-item:hover{background:#fcfbf8;}
+  .collect-item input{flex:none;accent-color:var(--accent);}
+  .collect-item .ci-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .collect-item .ci-time{color:var(--muted);font-size:11px;flex:none;}
+  .collect-item .ext{font-family:var(--mono);font-size:9px;font-weight:700;padding:2px 5px;border-radius:4px;background:var(--accent-soft);color:var(--accent);text-transform:uppercase;flex:none;}
+  .collect-actions{display:flex;align-items:center;gap:10px;margin-top:10px;flex-wrap:wrap;}
+
+  /* 검색어 입력 */
+  .searchrow{display:flex;gap:8px;flex-wrap:wrap;}
+  input[type=text]{
+    flex:1;min-width:200px;padding:11px 14px;font-size:15px;font-family:var(--sans);
+    border:1px solid var(--line-strong);border-radius:8px;background:var(--white);color:var(--ink);
+  }
+  input[type=text]:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);}
+
+  /* 동의어 제안 */
+  .suggest{
+    margin-top:12px;padding:12px 14px;border-radius:8px;
+    background:var(--accent-soft);border:1px solid #cfe0d6;font-size:13px;
+    display:none;
+  }
+  .suggest.show{display:block;}
+  .suggest .q{font-weight:600;margin-bottom:8px;color:var(--accent);}
+  .chips{display:flex;flex-wrap:wrap;gap:6px;}
+  .chip{
+    padding:5px 11px;border-radius:20px;border:1px solid #b9d1c4;background:var(--white);
+    font-size:13px;cursor:pointer;transition:.12s;user-select:none;
+  }
+  .chip:hover{border-color:var(--accent);}
+  .chip.on{background:var(--accent);color:#fff;border-color:var(--accent);}
+  .chip .x{opacity:.6;margin-left:4px;}
+
+  /* 옵션 */
+  .opts{display:flex;gap:16px;flex-wrap:wrap;margin-top:14px;font-size:13px;color:var(--muted);}
+  .opts label{display:flex;align-items:center;gap:6px;cursor:pointer;}
+
+  /* 라인 아이콘 (shared/components/icons.js가 sprite 주입) */
+  .icon{width:1em;height:1em;flex:none;display:inline-block;vertical-align:-.14em;
+    stroke:currentColor;stroke-width:2;fill:none;}
+
+  /* 버튼 */
+  .btn{
+    font-family:var(--sans);font-size:15px;font-weight:600;padding:11px 22px;
+    border-radius:8px;border:1px solid transparent;cursor:pointer;transition:.15s;
+    display:inline-flex;align-items:center;justify-content:center;gap:7px;
+  }
+  .btn-primary{background:var(--accent);color:#fff;}
+  .btn-primary:hover{background:#26493f;}
+  .btn-primary:disabled{background:#a9b8b1;cursor:not-allowed;}
+  .btn-ghost{background:var(--white);color:var(--accent);border-color:var(--line-strong);}
+  .btn-ghost:hover{border-color:var(--accent);}
+  .actionrow{display:flex;gap:10px;align-items:center;margin-top:18px;flex-wrap:wrap;}
+  .actionrow .count{font-size:13px;color:var(--muted);}
+
+  /* 결과 */
+  #results{margin-top:20px;display:none;}
+  #results.show{display:block;}
+  .result-head{display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap;}
+  .result-head h2{font-size:18px;margin:0;font-weight:800;}
+  .badge{
+    font-size:13px;font-weight:600;padding:3px 10px;border-radius:20px;
+    background:var(--accent-soft);color:var(--accent);
+  }
+  .badge.zero{background:#f6e9e4;color:var(--danger);}
+
+  table{width:100%;border-collapse:collapse;font-size:13px;background:var(--white);
+    border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;}
+  thead th{
+    background:#f4f2ec;text-align:left;padding:10px 12px;font-weight:700;font-size:12px;
+    letter-spacing:.02em;color:var(--muted);border-bottom:1px solid var(--line-strong);
+    text-transform:uppercase;
+  }
+  tbody td{padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top;}
+  tbody tr:last-child td{border-bottom:none;}
+  tbody tr:hover{background:#fcfbf8;}
+  td.file{font-weight:600;white-space:nowrap;}
+  td.file .ext{
+    font-family:var(--mono);font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;
+    background:var(--accent-soft);color:var(--accent);margin-right:6px;text-transform:uppercase;
+  }
+  td.loc{font-family:var(--mono);font-size:12px;color:var(--muted);white-space:nowrap;}
+  td.word{white-space:nowrap;}
+  td.word .tag{
+    display:inline-block;padding:1px 7px;border-radius:4px;background:var(--accent-soft);
+    color:var(--accent);font-size:12px;font-weight:600;
+  }
+  td.ctx{color:var(--ink);}
+  td.ctx mark{background:var(--hit);border-bottom:1.5px solid var(--hit-line);padding:0 1px;border-radius:2px;font-weight:600;}
+
+  .empty{
+    text-align:center;padding:40px 20px;color:var(--muted);font-size:14px;
+    background:var(--white);border:1px solid var(--line);border-radius:var(--radius);
+  }
+
+  /* 정리 리포트 요약 카드들 */
+  .digest-summary{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;}
+  .digest-cat{
+    display:flex;align-items:baseline;gap:8px;padding:10px 16px;border-radius:10px;
+    background:var(--accent-soft);border:1px solid #cfe0d6;
+  }
+  .digest-cat .lbl{font-size:14px;font-weight:600;color:var(--ink);}
+  .digest-cat .n{font-size:20px;font-weight:800;color:var(--accent);line-height:1;}
+  .digest-cat .n small{font-size:12px;font-weight:600;}
+  .digest-cat.zero{background:var(--paper);border-color:var(--line);}
+  .digest-cat.zero .n{color:var(--muted);}
+  .digest-total{font-size:13px;color:var(--muted);margin-bottom:14px;}
+
+  /* 아침 리포트 */
+  .morning-grid{display:grid;grid-template-columns:1fr 150px 1fr;gap:12px;margin-bottom:14px;}
+  .morning-grid label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px;font-weight:600;}
+  .morning-grid input{
+    width:100%;padding:10px 12px;font-size:14px;font-family:var(--sans);
+    border:1px solid var(--line-strong);border-radius:8px;background:var(--white);color:var(--ink);
+  }
+  .morning-grid input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);}
+  @media(max-width:600px){ .morning-grid{grid-template-columns:1fr;} }
+  .mr-saved{padding:10px 14px;border-radius:8px;background:var(--accent-soft);border:1px solid #cfe0d6;font-size:13px;}
+  #mrPreviewBtn .icon{width:16px;height:16px;}
+
+  /* 진행 표시 */
+  .progress{font-size:13px;color:var(--accent);margin-top:12px;display:none;align-items:center;gap:8px;}
+  .progress.show{display:flex;}
+  .spinner{
+    width:14px;height:14px;border:2px solid var(--accent-soft);border-top-color:var(--accent);
+    border-radius:50%;animation:spin .7s linear infinite;
+  }
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  /* 하단 안내 (레일 맨 아래 작은 문구) */
+  .rail-foot{padding:10px 14px;border-top:1px solid var(--line);font-size:11px;color:var(--muted);line-height:1.55;}
+  .rail-foot code{font-family:var(--mono);font-size:10px;}
+
+  @media(max-width:600px){ td.ctx{min-width:180px;} }
+  @media(max-width:860px){
+    .body{grid-template-columns:1fr;}
+    .rail{display:none;}
+    .modes{margin:0 auto;}
+    .main{padding:20px 16px 40px;}
+  }
+
+  /* 대시보드 iframe 임베드(embed=1): 브랜드·아바타는 대시보드가 제공하므로 숨김 */
+  body.embed .brand, body.embed .avatar{display:none;}
+  body.embed .topbar{padding-left:8px;}
+</style>
+</head>
+<body>
+<script src="shared/components/icons.js"></script>
+<div class="app">
+
+  <!-- 상단: 브랜드 + 모드 스위처 + 크레딧/프로필 -->
+  <div class="topbar">
+    <div class="brand"><span class="dot"></span>DocFinder</div>
+    <div class="modes">
+      <button class="mode-btn on" data-mode="search"><svg class="icon" aria-hidden="true"><use href="#i-search"></use></svg>검색</button>
+      <button class="mode-btn" data-mode="digest"><svg class="icon" aria-hidden="true"><use href="#i-list-checks"></use></svg>정리</button>
+      <button class="mode-btn" data-mode="morning"><svg class="icon" aria-hidden="true"><use href="#i-calendar-clock"></use></svg>아침 리포트</button>
+    </div>
+    <div class="topright">
+      <span class="credit" id="creditInfo" style="display:none;"></span>
+      <div class="avatar-wrap" id="avatarWrap">
+        <button type="button" class="avatar" id="avatar" aria-label="계정 메뉴">D</button>
+        <div class="avatar-menu" id="avatarMenu" hidden>
+          <div class="am-head">
+            <div class="am-name" id="amName">게스트</div>
+            <div class="am-email" id="amEmail"></div>
+            <span class="badge am-plan" id="amPlan" hidden></span>
+          </div>
+          <button type="button" class="am-item acct" id="amUsage"><svg class="icon" aria-hidden="true"><use href="#i-chart-column"></use></svg>사용량</button>
+          <button type="button" class="am-item acct" id="amSettings"><svg class="icon" aria-hidden="true"><use href="#i-settings"></use></svg>설정</button>
+          <button type="button" class="am-item theme-toggle"><svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg>다크 모드</button>
+          <a class="am-item acct" id="amUpgrade" href="pricing.html"><svg class="icon" aria-hidden="true"><use href="#i-zap"></use></svg>업그레이드</a>
+          <div class="am-sep"></div>
+          <a class="am-item guest" id="amLogin" href="login.html"><svg class="icon" aria-hidden="true"><use href="#i-arrow-right"></use></svg>로그인 / 시작하기</a>
+          <button type="button" class="am-item acct" id="amLogout"><svg class="icon" aria-hidden="true"><use href="#i-log-out"></use></svg>로그아웃</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="body">
+    <!-- 좌: 문서 컨텍스트 (전 모드 공유) -->
+    <aside class="rail">
+      <div class="rail-head"><span class="t">문서</span><span class="n" id="docCount">0개</span></div>
+      <div class="doclist" id="fileList"></div>
+      <input type="file" id="fileInput" multiple accept=".pdf,.docx,.xlsx,.xls,.csv,.txt" style="display:none">
+      <div class="rail-actions">
+        <button type="button" class="add" id="drop"><svg class="icon" aria-hidden="true"><use href="#i-upload"></use></svg>내 컴퓨터에서 올리기</button>
+        <button type="button" class="add" id="driveBtn"><svg class="icon" aria-hidden="true"><use href="#i-cloud"></use></svg>구글 드라이브에서</button>
+        <button type="button" class="add" id="collectToggle"><svg class="icon" aria-hidden="true"><use href="#i-repeat"></use></svg>최근 바뀐 문서 자동 수집</button>
+        <span class="drive-hint" id="driveHint"></span>
+      </div>
+      <div class="rail-foot">파일은 <strong>브라우저 안에서만</strong> 처리 — 서버로 안 나갑니다. PDF <code>PDF.js</code> · Word <code>mammoth</code> · 엑셀 <code>SheetJS</code> · 스캔 <code>OCR</code>.</div>
+
+      <!-- 자동 수집 팝오버 -->
+      <div class="collect-row" id="collectRow" style="display:none;">
+        <div class="collect-title"><svg class="icon" aria-hidden="true"><use href="#i-repeat"></use></svg>최근 바뀐 문서 자동 수집</div>
+        <div class="collect-controls">
+          <div class="periods" id="collectPeriods">
+            <button type="button" class="period on" data-days="1">어제부터</button>
+            <button type="button" class="period" data-days="3">최근 3일</button>
+            <button type="button" class="period" data-days="7">최근 7일</button>
+            <button type="button" class="period" data-days="30">최근 30일</button>
+          </div>
+          <button type="button" class="btn btn-ghost" id="collectFindBtn">찾기</button>
+        </div>
+        <div id="collectResult"></div>
+      </div>
+    </aside>
+
+    <!-- 우: 작업 화면 (모드별 교체) -->
+    <main class="main">
+
+      <!-- 검색 -->
+      <section class="mode-view on" id="view-search">
+        <div class="main-head"><h1>검색</h1><p>올린 문서에서 단어를 찾아 어느 문서 몇 번째 줄인지까지 짚어 드립니다.</p></div>
+        <div class="prompt">
+          <svg class="icon" aria-hidden="true" style="width:18px;height:18px;color:var(--muted)"><use href="#i-search"></use></svg>
+          <input type="text" id="term" placeholder="찾을 단어 (여러 개는 쉼표로) — 예: 계약금" autocomplete="off">
+          <button class="btn btn-primary" id="runBtn" disabled>문서에서 찾기</button>
+        </div>
+        <div class="suggest" id="suggest">
+          <div class="q"><svg class="icon" aria-hidden="true" style="margin-right:5px"><use href="#i-sparkles"></use></svg>비슷한 뜻의 단어도 같이 찾을까요?</div>
+          <div class="chips" id="chips"></div>
+        </div>
+        <div class="opts">
+          <label><input type="checkbox" id="optCase"> 대소문자 구분</label>
+          <label><input type="checkbox" id="optDedup" checked> 같은 줄 중복 제거</label>
+          <label><input type="checkbox" id="optOcr"> 스캔 이미지 PDF도 인식 <span style="color:var(--muted)">(OCR · 느림)</span></label>
+          <span class="count" id="readyCount" style="margin-left:auto;">파일과 검색어를 넣어 주세요</span>
+        </div>
+        <div class="progress" id="progress"><span class="spinner"></span><span id="progressText">읽는 중…</span></div>
+
+        <!-- 스캔 이미지 PDF 감지 안내 -->
+        <div id="ocrNotice" style="display:none;margin-top:12px;padding:10px 14px;border-radius:8px;
+          background:var(--accent-soft);border:1px solid #cfe0d6;font-size:13px;color:var(--ink);
+          display:none;align-items:center;gap:10px;flex-wrap:wrap;">
+          <span id="ocrNoticeText" style="flex:1;min-width:200px;"></span>
+          <button class="btn btn-ghost" id="ocrRunBtn" style="padding:7px 14px;font-size:13px;">
+            <svg class="icon" aria-hidden="true"><use href="#i-scan-text"></use></svg>스캔 문서도 글자 인식
+          </button>
+        </div>
+
+        <div id="limitNotice" style="display:none;margin-top:12px;padding:10px 14px;border-radius:8px;
+          background:#fdf2ee;border:1px solid #f0d3c6;font-size:13px;color:var(--danger);">
+          이번 달 크레딧이 부족해요 (<span id="limitNum"></span>).
+          <a href="pricing.html" target="_top" style="color:var(--danger);font-weight:700;">업그레이드</a>하면 더 많은 크레딧으로 계속할 수 있어요.
+        </div>
+
+        <section id="results">
+          <div class="result-head">
+            <h2>검색 결과</h2>
+            <span class="badge" id="resultBadge">0건</span>
+            <button class="btn btn-ghost" id="excelBtn" style="margin-left:auto"><svg class="icon" aria-hidden="true"><use href="#i-download"></use></svg>엑셀로 내려받기</button>
+          </div>
+          <div id="resultBody"></div>
+        </section>
+      </section>
+
+      <!-- 정리 -->
+      <section class="mode-view" id="digestCard">
+        <div class="main-head"><h1>정리 리포트</h1><p>항목별로 몇 건씩 어느 문서 어디에 있는지 모아 엑셀 한 장으로. (예: 사고, 소식, 계약, 납품)</p></div>
+        <div class="prompt">
+          <svg class="icon" aria-hidden="true" style="width:18px;height:18px;color:var(--muted)"><use href="#i-list-checks"></use></svg>
+          <input type="text" id="digestTerms" placeholder="정리할 항목 — 예: 사고, 소식, 계약, 납품" autocomplete="off">
+          <button class="btn btn-primary" id="digestBtn" disabled>정리하기</button>
+        </div>
+        <div class="actionrow">
+          <span class="count" id="digestHint">정리할 항목을 입력하세요</span>
+          <button class="btn btn-ghost" id="digestExcelBtn" style="display:none;margin-left:auto;"><svg class="icon" aria-hidden="true"><use href="#i-download"></use></svg>엑셀로 내려받기</button>
+        </div>
+        <div id="digestPreview" style="margin-top:18px;"></div>
+      </section>
+
+      <!-- 아침 리포트 -->
+      <section class="mode-view" id="morningCard">
+        <div class="main-head"><h1>아침 리포트</h1><p>어제 드라이브에서 바뀐 문서를 자동으로 모아 정리해 엑셀로. 출근 시각에 맞춰 예약하세요.</p></div>
+        <div class="morning-grid">
+          <div><label for="mrCats">정리할 항목</label><input type="text" id="mrCats" placeholder="예: 사고, 소식, 계약, 납품" autocomplete="off"></div>
+          <div><label for="mrTime">출근 시각</label><input type="time" id="mrTime" value="09:00"></div>
+          <div><label for="mrEmail">받을 이메일</label><input type="email" id="mrEmail" placeholder="you@company.com" autocomplete="off"></div>
+        </div>
+        <div class="actionrow">
+          <button class="btn btn-primary" id="mrPreviewBtn"><svg class="icon" aria-hidden="true"><use href="#i-repeat"></use></svg>지금 미리보기</button>
+          <button class="btn btn-ghost" id="mrSaveBtn">예약 저장</button>
+          <span class="count" id="mrHint"></span>
+        </div>
+        <div id="mrList" style="margin-top:14px;"></div>
+        <div style="margin-top:14px;padding:11px 15px;border-radius:10px;background:var(--paper);border:1px dashed var(--line-strong);font-size:12px;color:var(--muted);">
+          지금은 <strong>미리보기</strong>(어제 바뀐 문서를 실제로 모아 정리)와 <strong>예약 저장</strong>까지 동작합니다.
+          정해진 시각에 <strong>사람 없이 자동 발송</strong>되려면 서버 배포(예약작업·메일)가 필요해요 — 다음 단계입니다.
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+</div>
+
+<!-- 계정 모달: 사용량 / 설정 (아바타 메뉴에서 열림) -->
+<div class="modal-overlay" id="modalOverlay" hidden>
+  <div class="modal" id="usageModal" hidden>
+    <div class="modal-head"><h2>사용량</h2><button class="modal-x" data-close aria-label="닫기">&times;</button></div>
+    <div class="modal-body">
+      <p class="msub">이번 달 크레딧 사용량 · 모든 기능 공통, 매달 1일 자동 충전</p>
+      <div class="lbl2">이번 달 크레딧</div>
+      <div class="usage-num" id="usageText">0 크레딧</div>
+      <div class="usage-bar" id="usageBar"><div class="fill" id="usageFill" style="width:0%"></div></div>
+      <div id="usageHint" class="msub"></div>
+      <div class="lbl2" style="margin-top:16px;">일별 크레딧 사용 추이</div>
+      <div id="usageChart"></div>
+      <div class="uchart-caption" id="usageChartCaption"></div>
+    </div>
+  </div>
+  <div class="modal" id="settingsModal" hidden>
+    <div class="modal-head"><h2>설정</h2><button class="modal-x" data-close aria-label="닫기">&times;</button></div>
+    <div class="modal-body">
+      <div class="srow"><span class="lbl">이름</span><span class="val" id="setName">-</span></div>
+      <div class="srow"><span class="lbl">이메일</span><span class="val" id="setEmail">-</span></div>
+      <div class="srow"><span class="lbl">플랜</span><span class="val" id="setPlan">-</span></div>
+      <div class="srow"><span class="lbl">구독 관리</span><a href="pricing.html" class="btn btn-ghost" style="padding:7px 14px;font-size:13px;">플랜 변경</a></div>
+      <div class="srow" id="downgradeRow" style="display:none;"><span class="lbl">Free로 전환</span><button class="btn btn-ghost" id="downgradeBtn" style="padding:7px 14px;font-size:13px;">구독 해지</button></div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   문서 단어 찾기 · MVP
+   - 클라이언트 사이드 전용 (서버 없음)
+   - PDF.js / mammoth.js / SheetJS 오픈소스 결합
+   ============================================================ */
+
+// 대시보드가 <iframe src="tool.html?embed=1">로 끼워 넣을 때 헤더/푸터 숨김.
+// iframe 안에서 실행 중인지(self !== top)를 직접 감지한다 — 정적 호스트가 clean-URL
+// 리다이렉트로 ?embed=1 쿼리를 떨궈도 확실히 동작한다. 쿼리는 보조 신호로만 유지.
+(function(){
+  var embedded = false;
+  try { embedded = window.self !== window.top; } catch(e){ embedded = true; } // cross-origin이면 예외 → 임베드로 간주
+  if (embedded || new URLSearchParams(location.search).get('embed') === '1') {
+    document.body.classList.add('embed');
+  }
+})();
+
+pdfjsLib.GlobalWorkerOptions.workerSrc =
+  'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+/* ---- 문서 유형 추정 ----
+   업로드된 문서 내용에 유형별 키워드가 얼마나 나오는지 세어
+   가장 점수가 높은 유형을 골라 AI 동의어 요청에 힌트로 실어 보낸다.
+   (서버의 DOC_TYPE_HINTS 화이트리스트와 이름이 정확히 일치해야 함) */
+const DOC_TYPE_KEYWORDS = {
+  '계약서': ['계약','약정','당사자','갑','을','조항','해지','손해배상'],
+  '견적서': ['견적','단가','수량','합계','유효기간','견적가'],
+  '발주서': ['발주','납기','발주처','수주','품목','입고'],
+  '세금계산서/인보이스': ['세금계산서','공급가액','전자세금계산서','인보이스'],
+};
+
+function detectDocType(){
+  const scores = {};
+  files.filter(f=>f.status==='완료').forEach(f=>{
+    const sample = f.text.slice(0,200).map(l=>l.content).join(' '); // 파일당 앞부분만 훑어 성능 부담 줄임
+    Object.entries(DOC_TYPE_KEYWORDS).forEach(([type,words])=>{
+      words.forEach(w=>{ if(sample.includes(w)) scores[type] = (scores[type]||0)+1; });
+    });
+  });
+  let best=null, bestScore=0;
+  Object.entries(scores).forEach(([type,score])=>{ if(score>bestScore){best=type;bestScore=score;} });
+  return bestScore>=2 ? best : null; // 신호가 약하면 힌트 없이 일반 문서로 요청
+}
+
+/* ---- 내장 한국어 비즈니스 용어 동의어 사전 ----
+   나중에 이 부분을 AI API 호출로 교체하면 "진짜 AI" 버전이 됩니다. */
+const SYNONYMS = {
+  '계약금':['선수금','선금','착수금','예약금'],
+  '잔금':['잔여금','나머지 금액','미지급금'],
+  '납기':['납기일','납품일','납품 기한','인도일'],
+  '단가':['개당 가격','유닛 프라이스','단위 가격'],
+  '견적':['견적서','견적가','에스티메이트'],
+  '세금계산서':['계산서','세금계산','전자세금계산서'],
+  '부가세':['부가가치세','VAT','세액'],
+  '담당자':['담당','책임자','실무자','컨택'],
+  '수량':['개수','물량','수치','QTY'],
+  '금액':['가격','비용','대금','액수'],
+  '계약':['계약서','약정','협약','계약건'],
+  '발주':['오더','주문','발주서','PO'],
+  '입금':['송금','이체','결제','수금'],
+  '하자':['결함','불량','문제점','하자보수'],
+  '기한':['마감','데드라인','기일','만기'],
+};
+
+/* ---- 상태 ---- */
+let files = [];          // {file, name, ext, text:[{line, content}], status}
+let activeSynonyms = new Set();
+
+/* ---- DOM ---- */
+const $ = id => document.getElementById(id);
+const drop = $('drop'), fileInput = $('fileInput'), fileList = $('fileList');
+const term = $('term'), suggest = $('suggest'), chips = $('chips');
+const runBtn = $('runBtn'), readyCount = $('readyCount');
+const progress = $('progress'), progressText = $('progressText');
+const optOcr = $('optOcr'), ocrNotice = $('ocrNotice'), ocrNoticeText = $('ocrNoticeText'), ocrRunBtn = $('ocrRunBtn');
+const results = $('results'), resultBody = $('resultBody'), resultBadge = $('resultBadge');
+const excelBtn = $('excelBtn');
+const digestCard = $('digestCard'), digestTerms = $('digestTerms'), digestBtn = $('digestBtn'),
+      digestExcelBtn = $('digestExcelBtn'), digestHint = $('digestHint'), digestPreview = $('digestPreview');
+
+/* ================= 파일 업로드 ================= */
+drop.addEventListener('click', ()=>fileInput.click());
+drop.addEventListener('dragover', e=>{e.preventDefault();drop.classList.add('drag');});
+drop.addEventListener('dragleave', ()=>drop.classList.remove('drag'));
+drop.addEventListener('drop', e=>{
+  e.preventDefault();drop.classList.remove('drag');
+  addFiles([...e.dataTransfer.files]);
+});
+fileInput.addEventListener('change', e=>addFiles([...e.target.files]));
+
+// "스캔 문서도 글자 인식" 배너 버튼 → OCR 켜고 스캔본만 다시 읽기
+if(ocrRunBtn) ocrRunBtn.addEventListener('click', ()=>{ if(optOcr) optOcr.checked = true; reparseScanned(); });
+// 옵션 체크박스를 직접 켜도 이미 올린 스캔본을 다시 읽는다
+if(optOcr) optOcr.addEventListener('change', ()=>{ if(optOcr.checked) reparseScanned(); else updateOcrNotice(); });
+
+/* ================= 구글 드라이브에서 가져오기 ================= */
+const driveBtn = $('driveBtn'), driveHint = $('driveHint');
+if(driveBtn){
+  const configured = !!(window.DrivePicker && DrivePicker.isConfigured());
+  if(!configured){
+    driveBtn.disabled = true;
+    driveBtn.title = 'SETUP-TODO.md 5번 참고 — 구글 드라이브 연결 설정 필요';
+    if(driveHint) driveHint.textContent = '드라이브 연결은 설정이 필요합니다 (SETUP-TODO.md 5번). 내 컴퓨터 업로드는 그대로 사용하세요.';
+  } else {
+    driveBtn.addEventListener('click', ()=>{
+      const orig = driveBtn.innerHTML;
+      driveBtn.disabled = true;
+      driveBtn.innerHTML = '<span class="spinner"></span>불러오는 중…';
+      DrivePicker.open(
+        (fs)=>{
+          driveBtn.disabled = false; driveBtn.innerHTML = orig;
+          if(fs && fs.length){
+            addFiles(fs);
+            if(driveHint) driveHint.textContent = `드라이브에서 ${fs.length}개 문서를 불러왔어요.`;
+          }
+        },
+        (err)=>{
+          driveBtn.disabled = false; driveBtn.innerHTML = orig;
+          if(driveHint){
+            driveHint.textContent = (err && err.message === '__CANCELLED__')
+              ? '드라이브 인증이 취소됐어요. 다시 하려면 버튼을 눌러 주세요.'
+              : '드라이브 불러오기 실패: ' + ((err && err.message) || '알 수 없는 오류');
+          }
+        }
+      );
+    });
+  }
+}
+
+/* ================= 자동 수집: 최근 바뀐 문서 ================= */
+const collectRow = $('collectRow'), collectPeriods = $('collectPeriods'),
+      collectFindBtn = $('collectFindBtn'), collectResult = $('collectResult'),
+      collectToggle = $('collectToggle');
+let collectDays = 1;
+let foundDocs = [];
+
+// 자동 수집 버튼 = 팝오버 토글 (설정 안 됐으면 비활성)
+if(collectToggle){
+  if(window.DrivePicker && DrivePicker.isConfigured()){
+    collectToggle.addEventListener('click', ()=>{
+      collectRow.style.display = (collectRow.style.display === 'block') ? 'none' : 'block';
+    });
+  } else {
+    collectToggle.disabled = true;
+    collectToggle.title = '구글 드라이브 연결 설정이 필요합니다 (SETUP-TODO.md 5번)';
+  }
+}
+// 팝오버 바깥을 클릭하면 닫기
+document.addEventListener('click', (e)=>{
+  if(!collectRow || collectRow.style.display !== 'block') return;
+  if(collectRow.contains(e.target) || (collectToggle && collectToggle.contains(e.target))) return;
+  collectRow.style.display = 'none';
+});
+// 기간 칩 / 찾기 / 선택개수 (항상 위임 등록)
+if(collectPeriods) collectPeriods.addEventListener('click', (e)=>{
+  const b = e.target.closest('.period'); if(!b) return;
+  [...collectPeriods.querySelectorAll('.period')].forEach(p=>p.classList.remove('on'));
+  b.classList.add('on');
+  collectDays = parseInt(b.dataset.days, 10) || 1;
+});
+if(collectFindBtn) collectFindBtn.addEventListener('click', findRecent);
+if(collectResult) collectResult.addEventListener('change', ()=>{
+  const cnt = $('collectCount'); if(!cnt) return;
+  const chks = [...collectResult.querySelectorAll('.ci-chk')];
+  cnt.textContent = `${chks.filter(c=>c.checked).length} / ${chks.length}개 선택됨`;
+});
+
+function sinceIsoFromDays(days){
+  const d = new Date();
+  d.setDate(d.getDate() - days);
+  d.setHours(0,0,0,0);        // 그 날 자정부터
+  return d.toISOString();
+}
+
+function driveTypeLabel(mt){
+  if(mt==='application/vnd.google-apps.document') return 'DOC';
+  if(mt==='application/vnd.google-apps.spreadsheet') return 'SHEET';
+  if(mt==='application/pdf') return 'PDF';
+  if(mt && mt.indexOf('wordprocessingml')>=0) return 'DOCX';
+  if(mt && (mt.indexOf('spreadsheetml')>=0 || mt.indexOf('ms-excel')>=0)) return 'XLSX';
+  if(mt==='text/csv') return 'CSV';
+  if(mt==='text/plain') return 'TXT';
+  return '파일';
+}
+
+async function findRecent(){
+  collectFindBtn.disabled = true;
+  collectResult.innerHTML = '<div class="progress show"><span class="spinner"></span><span>최근 바뀐 문서 찾는 중…</span></div>';
+  try{
+    foundDocs = await DrivePicker.listRecent(sinceIsoFromDays(collectDays));
+    renderCollectList(foundDocs);
+  }catch(err){
+    collectResult.innerHTML = '<div class="empty">' +
+      ((err && err.message === '__CANCELLED__')
+        ? '드라이브 인증이 취소됐어요. 다시 시도해 주세요.'
+        : '문서 목록을 불러오지 못했어요: ' + escapeHtml((err && err.message) || '오류')) + '</div>';
+  }finally{
+    collectFindBtn.disabled = false;
+  }
+}
+
+function renderCollectList(docs){
+  if(!docs.length){
+    collectResult.innerHTML = '<div class="empty">그 기간에 바뀐 문서가 없어요.</div>';
+    return;
+  }
+  let html = '<div class="collect-list">';
+  docs.forEach((d,i)=>{
+    const t = new Date(d.modifiedTime).toLocaleString('ko-KR');
+    html += `<label class="collect-item">
+      <input type="checkbox" class="ci-chk" data-i="${i}" checked>
+      <span class="ext">${driveTypeLabel(d.mimeType)}</span>
+      <span class="ci-name">${escapeHtml(d.name)}</span>
+      <span class="ci-time">${escapeHtml(t)}</span>
+    </label>`;
+  });
+  html += '</div>';
+  html += `<div class="collect-actions">
+    <button type="button" class="btn btn-primary" id="collectImportBtn">선택 문서 가져오기</button>
+    <span class="count" id="collectCount">${docs.length} / ${docs.length}개 선택됨</span>
+  </div>`;
+  collectResult.innerHTML = html;
+  $('collectImportBtn').addEventListener('click', ()=>importSelected(docs));
+}
+
+async function importSelected(docs){
+  const chosen = [...collectResult.querySelectorAll('.ci-chk')]
+    .filter(c=>c.checked).map(c=>docs[+c.dataset.i]);
+  if(!chosen.length) return;
+  // 드라이브에서 불러오는 것 자체는 무료 — 검색·정리할 때 용량만큼 한 번 과금됨
+  const btn = $('collectImportBtn'), cnt = $('collectCount');
+  const orig = btn.innerHTML; btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>불러오는 중…';
+  try{
+    const { files, errors } = await DrivePicker.downloadPicked(chosen);
+    if(files.length) addFiles(files);
+    cnt.textContent = `${files.length}개 불러옴` + (errors.length ? ` · ${errors.length}개 실패` : '');
+  }catch(err){
+    cnt.textContent = (err && err.message === '__CANCELLED__') ? '인증 취소됨' : '불러오기 실패';
+  }finally{
+    btn.disabled = false; btn.innerHTML = orig;
+  }
+}
+
+/* ================= 아침 리포트 (자동수집 + 정리 한 번에 + 예약) ================= */
+const morningCard = $('morningCard'), mrCats = $('mrCats'), mrTime = $('mrTime'),
+      mrEmail = $('mrEmail'), mrPreviewBtn = $('mrPreviewBtn'), mrSaveBtn = $('mrSaveBtn'),
+      mrHint = $('mrHint'), mrList = $('mrList');
+
+// 표시 여부는 상단 모드 스위처가 제어 — 여기선 프리필 + 버튼 연결만 (드라이브 미설정이면 미리보기가 안내로 폴백)
+if(morningCard){
+  const u = (typeof getUser === 'function') ? getUser() : null;
+  if(u && u.email) mrEmail.value = u.email;
+  try{
+    const saved = JSON.parse(localStorage.getItem(morningKey(u && u.email)));
+    if(saved){
+      if(saved.cats) mrCats.value = saved.cats;
+      if(saved.time) mrTime.value = saved.time;
+      if(saved.email) mrEmail.value = saved.email;
+      renderMrSaved(saved);
+    }
+  }catch(e){}
+  mrPreviewBtn.addEventListener('click', mrPreview);
+  mrSaveBtn.addEventListener('click', mrSave);
+}
+
+function morningKey(email){ return 'dwf_morning_' + (email || (mrEmail && mrEmail.value.trim()) || 'anon'); }
+
+// 새로 추가된 문서들이 모두 파싱될 때까지 대기 (최대 ms)
+function waitAllParsed(ms){
+  return new Promise(res=>{
+    const t0 = Date.now();
+    (function chk(){
+      const pending = files.some(f=>f.status!=='완료' && !f.status.startsWith('오류'));
+      if(!pending || Date.now()-t0 > ms) return res();
+      setTimeout(chk, 300);
+    })();
+  });
+}
+
+// 지금 미리보기: 어제 바뀐 문서 자동수집 → 불러오기 → 정리 리포트 실행
+async function mrPreview(){
+  const cats = mrCats.value.split(',').map(s=>s.trim()).filter(Boolean);
+  if(!cats.length){ mrHint.textContent = '정리할 항목을 먼저 입력하세요'; return; }
+  // 크레딧은 아래 runDigest()에서 수집한 문서 용량만큼 한 번 차감됨
+  mrPreviewBtn.disabled = true;
+  const orig = mrPreviewBtn.innerHTML;
+  mrPreviewBtn.innerHTML = '<span class="spinner"></span>어제 바뀐 문서 모으는 중…';
+  try{
+    const docs = await DrivePicker.listRecent(sinceIsoFromDays(1));
+    if(!docs.length){ mrHint.textContent = '어제 이후 드라이브에서 바뀐 문서가 없어요.'; return; }
+    mrPreviewBtn.innerHTML = `<span class="spinner"></span>${docs.length}개 불러오는 중…`;
+    const { files: got } = await DrivePicker.downloadPicked(docs);
+    if(!got.length){ mrHint.textContent = '문서를 불러오지 못했어요.'; return; }
+    addFiles(got);
+    await waitAllParsed(12000);
+    // 정리 리포트 재사용
+    digestTerms.value = cats.join(', ');
+    updateDigestReady();
+    runDigest();
+    mrHint.textContent = `어제 바뀐 문서 ${got.length}개를 정리했어요 — 위 "정리 리포트"에서 확인·엑셀 다운로드`;
+  }catch(err){
+    mrHint.textContent = (err && err.message === '__CANCELLED__')
+      ? '드라이브 인증이 취소됐어요. 다시 시도해 주세요.'
+      : '미리보기 실패: ' + ((err && err.message) || '오류');
+  }finally{
+    mrPreviewBtn.disabled = false;
+    mrPreviewBtn.innerHTML = orig;
+  }
+}
+
+function mrSave(){
+  const cfg = {
+    time: mrTime.value,
+    cats: mrCats.value.trim(),
+    email: mrEmail.value.trim(),
+    savedAt: new Date().toISOString()
+  };
+  if(!cfg.cats){ mrHint.textContent = '정리할 항목을 입력하세요'; return; }
+  localStorage.setItem(morningKey(cfg.email), JSON.stringify(cfg));
+  renderMrSaved(cfg);
+  mrHint.textContent = '예약이 저장됐어요 (무인 발송은 배포 후 동작).';
+}
+
+function renderMrSaved(cfg){
+  mrList.innerHTML = `<div class="mr-saved">매일 <strong>${escapeHtml(cfg.time || '—')}</strong>에
+    <strong>${escapeHtml(cfg.cats || '—')}</strong> 정리 →
+    <strong>${escapeHtml(cfg.email || '(이메일 미입력)')}</strong>로 발송 예약됨
+    <span style="color:var(--muted)">· 무인 발송은 배포 후</span></div>`;
+}
+
+function extOf(name){
+  const m = name.toLowerCase().match(/\.(pdf|docx|xlsx|xls|csv|txt)$/);
+  return m ? m[1] : '';
+}
+
+function addFiles(list){
+  list.forEach(file=>{
+    const ext = extOf(file.name);
+    if(!ext){ return; } // 지원 안 하는 형식 무시
+    if(files.some(f=>f.name===file.name && f.file.size===file.size)) return; // 중복 방지
+    const rec = {file, name:file.name, ext, text:null, status:'대기'};
+    files.push(rec);
+    parseFile(rec);
+  });
+  renderFiles();
+  updateReady();
+}
+
+function renderFiles(){
+  fileList.innerHTML = '';
+  files.forEach((f,i)=>{
+    const div = document.createElement('div');
+    div.className = 'fileitem';
+    const stClass = f.status==='완료'?'ok':(f.status.startsWith('오류')?'err':'');
+    div.innerHTML = `
+      <span class="ext">${f.ext}</span>
+      <span class="nm">${escapeHtml(f.name)}</span>
+      <span class="st ${stClass}">${f.status}</span>
+      <button class="rm" title="빼기">×</button>`;
+    div.querySelector('.rm').addEventListener('click', ()=>{
+      files.splice(i,1); renderFiles(); updateReady();
+    });
+    fileList.appendChild(div);
+  });
+}
+
+/* ================= 파일 파싱 ================= */
+async function parseFile(rec){
+  rec.status = '읽는 중…'; renderFiles();
+  try{
+    if(rec.ext==='pdf')       rec.text = await readPdf(rec.file, rec);
+    else if(rec.ext==='docx') rec.text = await readDocx(rec.file);
+    else if(rec.ext==='xlsx'||rec.ext==='xls') rec.text = await readXlsx(rec.file);
+    else if(rec.ext==='csv'||rec.ext==='txt')  rec.text = await readText(rec.file);
+    rec.status = '완료';
+  }catch(err){
+    console.error(err);
+    rec.status = '오류: 읽기 실패';
+    rec.text = [];
+  }
+  renderFiles(); updateReady(); updateOcrNotice();
+}
+
+async function readText(file){
+  const raw = await file.text();
+  return raw.split(/\r?\n/).map((content,i)=>({line:i+1, content}));
+}
+
+async function readPdf(file, rec){
+  const buf = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({data:buf}).promise;
+  const lines = [];
+  const scanned = [];   // 텍스트 레이어가 없는(=스캔 이미지) 페이지 {p, page}
+  for(let p=1;p<=pdf.numPages;p++){
+    const page = await pdf.getPage(p);
+    const content = await page.getTextContent();
+    // y좌표로 같은 줄 묶기
+    const rows = {};
+    content.items.forEach(it=>{
+      const y = Math.round(it.transform[5]);
+      (rows[y] = rows[y] || []).push(it.str);
+    });
+    const ys = Object.keys(rows).map(Number).sort((a,b)=>b-a);
+    let pageChars = 0;
+    ys.forEach(y=>{
+      const txt = rows[y].join('').trim();
+      if(txt){ lines.push({line:`p${p}`, content:txt, page:p}); pageChars += txt.replace(/\s/g,'').length; }
+    });
+    // 공백 제외 글자가 거의 없으면 스캔 이미지 페이지로 판단 (글자가 사진으로 박혀 있음)
+    if(pageChars < 8) scanned.push({p, page});
+  }
+
+  // 이 파일에서 OCR가 필요한(=아직 텍스트를 못 얻은) 페이지 번호를 기록해 둔다.
+  // 배너/재파싱이 이 값을 보고 안내 여부를 정한다.
+  if(rec) rec.scannedPages = scanned.map(s=>s.p);
+
+  // OCR 옵션이 켜져 있고 Tesseract가 로드됐으면, 스캔 페이지를 이미지로 렌더해 글자 인식.
+  // (Tesseract 로드 실패 시 window.Tesseract가 없으므로 이 블록은 조용히 건너뛴다 → 앱 안 죽음)
+  if(scanned.length && optOcr && optOcr.checked && window.Tesseract){
+    if(rec){ rec.status = 'OCR 준비 중…'; renderFiles(); }
+    for(const {p, page} of scanned){
+      // OCR 크레딧은 용량 모델의 페이지 가산으로 첫 처리 때 한 번 반영 (여기선 차감 안 함)
+      try{
+        const text = await ocrPdfPage(page, rec, p);
+        text.split(/\r?\n/).map(t=>t.trim()).filter(Boolean)
+          .forEach(t=>lines.push({line:`p${p}`, content:t, page:p, ocr:true}));
+      }catch(e){ console.error('OCR 실패 p'+p, e); }
+    }
+    if(rec){
+      // OCR로 실제 글자를 얻어낸 페이지는 해결됨 처리 → 배너에서 빠짐
+      const got = new Set(lines.filter(l=>l.ocr).map(l=>l.page));
+      rec.scannedPages = rec.scannedPages.filter(pn=>!got.has(pn));
+    }
+  }
+  return lines;
+}
+
+/* ---- OCR (Tesseract.js) ----
+   스캔 이미지 PDF 페이지를 캔버스로 렌더해 한글+영어 글자를 인식한다.
+   워커는 최초 1회만 만들어 재사용(엔진·언어데이터 재다운로드 방지). */
+let _ocrWorker = null;   // Promise<Worker>
+let _ocrCtx = null;      // {rec, pnum} — 진행률 로거가 어느 파일/페이지인지 알도록
+
+function getOcrWorker(){
+  if(_ocrWorker) return _ocrWorker;
+  _ocrWorker = Tesseract.createWorker('kor+eng', 1, {
+    logger: m=>{
+      if(!_ocrCtx || !_ocrCtx.rec) return;
+      if(m.status === 'recognizing text'){
+        const pct = Math.round((m.progress||0)*100);
+        _ocrCtx.rec.status = `OCR 인식 중 p${_ocrCtx.pnum}… ${pct}%`;
+        renderFiles();
+      } else if(/load|initiali|download/i.test(m.status||'')){
+        _ocrCtx.rec.status = 'OCR 엔진 준비 중… (최초 1회)';
+        renderFiles();
+      }
+    }
+  });
+  return _ocrWorker;
+}
+
+async function ocrPdfPage(page, rec, pnum){
+  _ocrCtx = {rec, pnum};
+  // 스캔본은 해상도가 낮은 경우가 많아 확대해 렌더하면 인식률이 오른다. 다만 폭만 보고 키우면
+  // 세로로 긴 페이지에서 캔버스가 수천만 픽셀로 폭발해(렌더·OCR가 사실상 멈춤) 위험하다.
+  // → 폭이 약 1600px가 되도록 키우되, 한 변이 2800px를 넘지 않게 상한을 함께 건다.
+  const base = page.getViewport({scale:1});
+  let scale = 1600 / base.width;
+  scale = Math.min(scale, 2800 / Math.max(base.width, base.height));
+  scale = Math.max(1, Math.min(scale, 4));
+  const viewport = page.getViewport({scale});
+  const canvas = document.createElement('canvas');
+  canvas.width = viewport.width;
+  canvas.height = viewport.height;
+  await page.render({canvasContext:canvas.getContext('2d'), viewport}).promise;
+  const worker = await getOcrWorker();
+  const { data } = await worker.recognize(canvas);
+  return (data && data.text) || '';
+}
+
+/* 스캔 이미지 PDF 감지 안내 배너 — OCR가 꺼져 있고 아직 못 읽은 스캔 페이지가 있을 때만 표시 */
+function updateOcrNotice(){
+  if(!ocrNotice) return;
+  const pending = files.filter(f=>f.status==='완료' && f.scannedPages && f.scannedPages.length);
+  if(pending.length && optOcr && !optOcr.checked){
+    const docs = pending.length;
+    const pages = pending.reduce((n,f)=>n+f.scannedPages.length,0);
+    ocrNoticeText.innerHTML =
+      `<strong>스캔 이미지 PDF</strong>가 감지됐어요 (문서 ${docs}개·${pages}쪽). ` +
+      `글자가 사진으로 된 문서라 지금은 검색에 안 잡혀요. ` +
+      `<span style="color:var(--muted)">OCR로 읽으면 검색됩니다 (느리고, 최초 1회 인식 엔진을 내려받아요).</span>`;
+    ocrNotice.style.display = 'flex';
+  } else {
+    ocrNotice.style.display = 'none';
+  }
+}
+
+/* 스캔 페이지가 있는 파일만 OCR 켜서 다시 읽기 */
+function reparseScanned(){
+  const targets = files.filter(f=>f.scannedPages && f.scannedPages.length);
+  if(!targets.length) return;
+  if(ocrNotice) ocrNotice.style.display = 'none';
+  targets.forEach(rec=>parseFile(rec));
+}
+
+async function readDocx(file){
+  const buf = await file.arrayBuffer();
+  const res = await mammoth.extractRawText({arrayBuffer:buf});
+  return res.value.split(/\r?\n/).filter(t=>t.trim())
+    .map((content,i)=>({line:i+1, content}));
+}
+
+async function readXlsx(file){
+  const buf = await file.arrayBuffer();
+  const wb = XLSX.read(buf, {type:'array'});
+  const lines = [];
+  wb.SheetNames.forEach(sheet=>{
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheet], {header:1, blankrows:false});
+    rows.forEach((row,i)=>{
+      const content = row.map(c=>c==null?'':String(c)).join(' | ').trim();
+      if(content) lines.push({line:`${sheet}!${i+1}행`, content});
+    });
+  });
+  return lines;
+}
+
+/* ================= 검색어 & 동의어 제안 ================= */
+let suggestTimer = null;
+let lastSuggestKey = '';
+let currentSuggestions = [];   // 현재 화면에 뜬 후보 단어들
+
+term.addEventListener('input', ()=>{
+  updateReady();
+  // 타이핑 멈추고 400ms 뒤에 한 번만 요청 (입력 중 과다 호출 방지)
+  clearTimeout(suggestTimer);
+  suggestTimer = setTimeout(fetchSuggestions, 400);
+});
+
+function firstTerm(){
+  return term.value.split(',')[0].trim();
+}
+
+// 1) Groq에 먼저 물어보고 2) 실패하면 내장 사전으로 폴백
+async function fetchSuggestions(){
+  const key = firstTerm();
+  if(!key){ suggest.classList.remove('show'); lastSuggestKey=''; return; }
+  if(key === lastSuggestKey) return;   // 같은 단어면 다시 요청 안 함
+  lastSuggestKey = key;
+
+  // 로딩 표시
+  suggest.classList.add('show');
+  chips.innerHTML = '<span style="font-size:13px;color:var(--muted)">비슷한 단어 찾는 중…</span>';
+
+  let syns = null;
+  let source = 'dict';
+  const docType = detectDocType();
+
+  try{
+    const resp = await fetch('/api/synonyms', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({word:key, docType})
+    });
+    if(resp.ok){
+      const data = await resp.json();
+      if(Array.isArray(data.synonyms) && data.synonyms.length){
+        syns = data.synonyms;
+        source = 'groq';
+      }
+    }
+    // resp가 실패(4xx/5xx)면 아래 폴백으로 넘어감
+  }catch(e){
+    // 네트워크 오류 / 로컬에서 API 없이 열었을 때 → 폴백
+  }
+
+  // 폴백: 내장 사전
+  if(!syns){
+    syns = SYNONYMS[key] || null;
+    source = 'dict';
+  }
+
+  // 검색어가 그새 바뀌었으면 버림 (오래된 응답 방지)
+  if(firstTerm() !== key) return;
+
+  if(!syns || !syns.length){
+    suggest.classList.remove('show');
+    currentSuggestions = [];
+    return;
+  }
+
+  currentSuggestions = syns;
+  renderChips(source, source==='groq' ? docType : null);
+}
+
+function renderChips(source, docType){
+  chips.innerHTML = '';
+  currentSuggestions.forEach(s=>{
+    const chip = document.createElement('span');
+    chip.className = 'chip' + (activeSynonyms.has(s)?' on':'');
+    chip.innerHTML = activeSynonyms.has(s) ? `${escapeHtml(s)}<span class="x">✓</span>` : `+ ${escapeHtml(s)}`;
+    chip.addEventListener('click', ()=>{
+      if(activeSynonyms.has(s)) activeSynonyms.delete(s);
+      else activeSynonyms.add(s);
+      renderChips(source, docType);
+    });
+    chips.appendChild(chip);
+  });
+  // 출처 뱃지 (AI가 준 건지 사전인지, 문서 유형을 맞춰서 준 건지 티내기 — 포트폴리오에서 어필 포인트)
+  const tag = document.createElement('span');
+  tag.style.cssText = 'font-size:11px;color:var(--muted);margin-left:4px;align-self:center';
+  tag.textContent = source==='groq'
+    ? (docType ? `· AI 추천 (${docType} 맞춤)` : '· AI 추천')
+    : '· 기본 사전';
+  chips.appendChild(tag);
+}
+
+/* ================= 실행 준비 상태 ================= */
+function updateReady(){
+  const done = files.filter(f=>f.status==='완료').length;
+  const hasTerm = term.value.trim().length>0;
+  const ready = done>0 && hasTerm;
+  runBtn.disabled = !ready;
+  if(files.length===0) readyCount.textContent = '파일과 검색어를 넣어 주세요';
+  else if(!hasTerm) readyCount.textContent = `문서 ${done}개 준비됨 · 검색어를 입력하세요`;
+  else readyCount.textContent = `문서 ${done}개에서 찾을 준비 완료`;
+  const dc = $('docCount'); if(dc) dc.textContent = `${files.length}개`;
+  updateDigestReady();
+}
+
+/* ================= 검색 실행 ================= */
+let lastResults = [];
+
+runBtn.addEventListener('click', runSearch);
+
+function buildTerms(){
+  const typed = term.value.split(',').map(t=>t.trim()).filter(Boolean);
+  const all = new Set(typed);
+  activeSynonyms.forEach(s=>all.add(s));
+  return [...all];
+}
+
+/* ===== 크레딧 차감 (기능 잠금 없음 · 쓴 만큼) =====
+   로그인된 사용자만 차감. 단독 실행(getUser()=null)은 무제한.
+   cost만큼 쓸 수 있으면 차감하고 true, 부족하면 안내 띄우고 false. */
+function chargeCredits(cost, label){
+  const user = typeof getUser === 'function' ? getUser() : null;
+  if(!user) return true;                              // 단독 실행 = 무제한
+  if(typeof canSpend === 'function' && !canSpend(user.email, user.plan, cost)){
+    const bal = (typeof creditBalance === 'function') ? creditBalance(user.email, user.plan) : 0;
+    $('limitNum').textContent = `${label} ${cost} 필요 · 남은 크레딧 ${bal}`;
+    $('limitNotice').style.display = 'block';
+    if(window.parent !== window) window.parent.postMessage({ type:'dwf-limit-reached' }, '*');
+    return false;
+  }
+  const spent = (typeof spendCredits === 'function') ? spendCredits(user.email, cost) : 0;
+  $('limitNotice').style.display = 'none';
+  // 대시보드 셸(iframe)에 끼워져 있으면 사이드바 크레딧 게이지를 즉시 갱신 (type 유지: 하위호환)
+  if(window.parent !== window) window.parent.postMessage({ type:'dwf-search', usage: spent }, '*');
+  updateCreditDisplay();
+  return true;
+}
+
+function updateCreditDisplay(){
+  const el = $('creditInfo'); if(!el) return;
+  const user = typeof getUser === 'function' ? getUser() : null;
+  if(!user){ el.style.display = 'none'; return; }
+  const allow = (typeof planCredits === 'function') ? planCredits(user.plan) : null;
+  const bal = (typeof creditBalance === 'function') ? creditBalance(user.email, user.plan) : 0;
+  el.style.display = 'inline-flex';
+  el.textContent = (allow == null) ? '크레딧 무제한' : `크레딧 ${bal} / ${allow}`;
+}
+
+/* 용량 비례 차감: 아직 과금 안 된(완료된) 문서들의 용량 + OCR 페이지만큼 딱 한 번 차감.
+   업로드·재검색은 무료 — 새로 처리하는 문서가 있을 때만 과금. */
+function chargeForNewDocs(){
+  const fresh = files.filter(f=>f.status==='완료' && !f._billed);
+  if(!fresh.length) return true;                 // 새로 처리할 문서 없음 → 무료
+  let bytes = 0, ocrPages = 0;
+  fresh.forEach(f=>{
+    bytes += (f.file && f.file.size) || 0;
+    ocrPages += new Set((f.text||[]).filter(l=>l.ocr).map(l=>l.page)).size;
+  });
+  const per = (typeof CREDIT_MODEL!=='undefined') ? CREDIT_MODEL.bytesPerCredit : 256000;
+  const ocrRate = (typeof CREDIT_MODEL!=='undefined') ? CREDIT_MODEL.ocrPageSurcharge : 3;
+  const cost = Math.max(1, Math.ceil(bytes / per) + ocrPages * ocrRate);
+  if(!chargeCredits(cost, '문서 처리')) return false;   // 부족하면 안내 후 중단(과금 표시 안 함)
+  fresh.forEach(f=>{ f._billed = true; });
+  return true;
+}
+
+function runSearch(){
+  // 새로 올린 문서 용량만큼만 차감(단독 실행이면 무제한, 이미 처리한 문서는 무료). 부족하면 중단.
+  if(!chargeForNewDocs()) return;
+
+  const terms = buildTerms();
+  const caseSensitive = $('optCase').checked;
+  const dedup = $('optDedup').checked;
+  const rows = [];
+
+  files.filter(f=>f.status==='완료').forEach(f=>{
+    const seenLines = new Set();
+    f.text.forEach((ln,idx)=>{
+      const hay = caseSensitive ? ln.content : ln.content.toLowerCase();
+      terms.forEach(t=>{
+        const needle = caseSensitive ? t : t.toLowerCase();
+        if(hay.includes(needle)){
+          // idx로 실제 줄(행)을 구분하고 t(단어)까지 키에 포함 —
+          // PDF는 loc이 페이지 단위(p1 등)라 idx 없이는 같은 페이지의
+          // 다른 줄이 전부 한 건으로 뭉개지고, t 없이는 같은 줄에서
+          // 검색어가 여러 개 잡혀도 첫 번째만 남는 문제가 있었음
+          const dedupKey = f.name+'|'+idx+'|'+t;
+          if(dedup && seenLines.has(dedupKey)) return;
+          seenLines.add(dedupKey);
+          rows.push({
+            file:f.name, ext:f.ext, loc:ln.line,
+            word:t, content:ln.content
+          });
+        }
+      });
+    });
+  });
+
+  lastResults = rows;
+  renderResults(rows, terms);
+}
+
+function renderResults(rows, terms){
+  results.classList.add('show');
+  results.scrollIntoView({behavior:'smooth', block:'start'});
+  resultBadge.textContent = `${rows.length}건`;
+  resultBadge.className = 'badge' + (rows.length===0?' zero':'');
+
+  if(rows.length===0){
+    resultBody.innerHTML = `<div class="empty">올린 문서에서 해당 단어를 찾지 못했어요.<br>검색어를 바꾸거나, 비슷한 단어도 함께 찾아 보세요.</div>`;
+    return;
+  }
+
+  let html = `<table><thead><tr>
+    <th>문서</th><th>위치</th><th>찾은 단어</th><th>해당 줄 내용</th>
+  </tr></thead><tbody>`;
+  rows.forEach(r=>{
+    html += `<tr>
+      <td class="file"><span class="ext">${r.ext}</span>${escapeHtml(r.file)}</td>
+      <td class="loc">${escapeHtml(String(r.loc))}</td>
+      <td class="word"><span class="tag">${escapeHtml(r.word)}</span></td>
+      <td class="ctx">${highlight(r.content, terms)}</td>
+    </tr>`;
+  });
+  html += '</tbody></table>';
+  resultBody.innerHTML = html;
+}
+
+/* ================= 엑셀 내려받기 ================= */
+excelBtn.addEventListener('click', ()=>{
+  if(lastResults.length===0){ alert('먼저 검색을 실행해 주세요.'); return; }
+  const data = lastResults.map((r,i)=>({
+    '번호':i+1,
+    '문서명':r.file,
+    '형식':r.ext.toUpperCase(),
+    '위치(줄/페이지)':String(r.loc),
+    '찾은 단어':r.word,
+    '해당 줄 내용':r.content
+  }));
+  const ws = XLSX.utils.json_to_sheet(data);
+  ws['!cols'] = [{wch:6},{wch:28},{wch:8},{wch:14},{wch:12},{wch:60}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '검색결과');
+  const stamp = new Date().toISOString().slice(0,10);
+  XLSX.writeFile(wb, `문서검색결과_${stamp}.xlsx`);
+});
+
+/* ================= 정리 리포트 ================= */
+/* 올린 문서들에서 "정리할 항목(카테고리)"별로 매칭 줄을 모아 항목별 건수 + 상세를 낸다.
+   = 검색 로직을 항목별로 그룹핑한 것. 나중에 드라이브 자동수집·스케줄만 앞에 붙이면
+   "어제 퇴근 후 소식 정리 → 아침 엑셀" 비전의 알맹이가 된다. */
+let lastDigest = null;
+
+function updateDigestReady(){
+  if(!digestCard) return;
+  const done = files.filter(f=>f.status==='완료').length;
+  // (표시 여부는 상단 모드 스위처가 제어 — 여기선 버튼 활성/안내만)
+  const hasCats = digestTerms.value.trim().length>0;
+  digestBtn.disabled = !(done>0 && hasCats);
+  digestHint.textContent = done===0 ? '문서를 먼저 올려 주세요'
+    : (!hasCats ? '정리할 항목을 입력하세요' : `문서 ${done}개에서 정리할 준비 완료`);
+}
+
+function runDigest(){
+  const cats = digestTerms.value.split(',').map(t=>t.trim()).filter(Boolean);
+  if(!cats.length) return;
+  if(!chargeForNewDocs()) return;   // 새로 처리하는 문서 용량만큼만 차감(이미 처리한 건 무료)
+  const caseSensitive = $('optCase').checked;
+  const perCat = {};
+  cats.forEach(c=>{ perCat[c] = []; });
+
+  files.filter(f=>f.status==='완료').forEach(f=>{
+    const seen = new Set();
+    f.text.forEach((ln,idx)=>{
+      const hay = caseSensitive ? ln.content : ln.content.toLowerCase();
+      cats.forEach(c=>{
+        const needle = caseSensitive ? c : c.toLowerCase();
+        if(hay.includes(needle)){
+          const key = f.name+'|'+idx+'|'+c;   // 같은 줄·같은 항목 중복 방지
+          if(seen.has(key)) return; seen.add(key);
+          perCat[c].push({ cat:c, file:f.name, ext:f.ext, loc:ln.line, content:ln.content });
+        }
+      });
+    });
+  });
+
+  lastDigest = { cats, perCat };
+  renderDigest(cats, perCat);
+}
+
+function renderDigest(cats, perCat){
+  const done = files.filter(f=>f.status==='완료').length;
+  let total = 0;
+  let html = '<div class="digest-summary">';
+  cats.forEach(c=>{
+    const n = perCat[c].length; total += n;
+    html += `<div class="digest-cat${n===0?' zero':''}">
+      <span class="lbl">${escapeHtml(c)}</span><span class="n">${n}<small>건</small></span></div>`;
+  });
+  html += '</div>';
+  html += `<div class="digest-total">문서 ${done}개에서 총 <strong>${total}건</strong> 정리됨 · ${new Date().toLocaleString('ko-KR')}</div>`;
+
+  if(total>0){
+    html += `<table><thead><tr><th>항목</th><th>문서</th><th>위치</th><th>해당 줄 내용</th></tr></thead><tbody>`;
+    cats.forEach(c=>{
+      perCat[c].forEach(r=>{
+        html += `<tr>
+          <td class="word"><span class="tag">${escapeHtml(c)}</span></td>
+          <td class="file"><span class="ext">${r.ext}</span>${escapeHtml(r.file)}</td>
+          <td class="loc">${escapeHtml(String(r.loc))}</td>
+          <td class="ctx">${highlight(r.content, [c])}</td>
+        </tr>`;
+      });
+    });
+    html += '</tbody></table>';
+  } else {
+    html += `<div class="empty">입력한 항목을 문서에서 찾지 못했어요. 항목 단어를 바꿔 보세요.</div>`;
+  }
+  digestPreview.innerHTML = html;
+  digestExcelBtn.style.display = total>0 ? 'inline-flex' : 'none';
+  digestPreview.scrollIntoView({behavior:'smooth', block:'nearest'});
+}
+
+function downloadDigestExcel(){
+  if(!lastDigest){ return; }
+  const { cats, perCat } = lastDigest;
+  const wb = XLSX.utils.book_new();
+
+  // 시트1: 요약 (항목별 건수)
+  const summary = cats.map(c=>({ '항목':c, '건수':perCat[c].length }));
+  summary.push({ '항목':'합계', '건수':cats.reduce((s,c)=>s+perCat[c].length,0) });
+  const ws1 = XLSX.utils.json_to_sheet(summary);
+  ws1['!cols'] = [{wch:22},{wch:8}];
+  XLSX.utils.book_append_sheet(wb, ws1, '요약');
+
+  // 시트2: 상세 (항목별 매칭 줄)
+  const detail = [];
+  cats.forEach(c=>perCat[c].forEach(r=>detail.push({
+    '항목':c, '문서명':r.file, '형식':r.ext.toUpperCase(), '위치(줄/페이지)':String(r.loc), '해당 줄 내용':r.content
+  })));
+  const ws2 = XLSX.utils.json_to_sheet(detail.length ? detail : [{'항목':'','문서명':'','형식':'','위치(줄/페이지)':'','해당 줄 내용':''}]);
+  ws2['!cols'] = [{wch:12},{wch:26},{wch:8},{wch:14},{wch:60}];
+  XLSX.utils.book_append_sheet(wb, ws2, '상세');
+
+  const stamp = new Date().toISOString().slice(0,10);
+  XLSX.writeFile(wb, `정리리포트_${stamp}.xlsx`);
+}
+
+digestTerms.addEventListener('input', updateDigestReady);
+digestBtn.addEventListener('click', runDigest);
+digestExcelBtn.addEventListener('click', downloadDigestExcel);
+
+// 로그인 상태면 남은 크레딧을 검색 버튼 옆에 표시 (단독 실행이면 숨김)
+updateCreditDisplay();
+
+/* ================= 유틸 ================= */
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function highlight(text, terms){
+  let safe = escapeHtml(text);
+  const sorted = [...terms].sort((a,b)=>b.length-a.length);
+  sorted.forEach(t=>{
+    if(!t) return;
+    const esc = t.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+    safe = safe.replace(new RegExp('('+escapeHtml(esc)+')','gi'), '<mark>$1</mark>');
+  });
+  return safe;
+}
+
+/* ================= 모드 스위처 (검색 · 정리 · 아침 리포트) ================= */
+(function(){
+  const btns = [...document.querySelectorAll('.mode-btn')];
+  const views = { search:'view-search', digest:'digestCard', morning:'morningCard' };
+  btns.forEach(b=>b.addEventListener('click', ()=>{
+    btns.forEach(x=>x.classList.remove('on'));
+    b.classList.add('on');
+    Object.values(views).forEach(id=>{ const el=document.getElementById(id); if(el) el.classList.remove('on'); });
+    const el = document.getElementById(views[b.dataset.mode]); if(el) el.classList.add('on');
+    const main = document.querySelector('.main'); if(main) main.scrollTop = 0;
+  }));
+})();
+
+/* ================= 계정 메뉴 (사용량 · 설정 · 다크 · 업그레이드 · 로그아웃) ================= */
+(function(){
+  const user = (typeof getUser === 'function') ? getUser() : null;
+  const av = document.getElementById('avatar');
+  const menu = document.getElementById('avatarMenu');
+  const wrap = document.getElementById('avatarWrap');
+  if(!av || !menu) return;
+
+  // 로그인/게스트에 따라 메뉴 항목 표시
+  document.querySelectorAll('.am-item.acct').forEach(el=> el.style.display = user ? '' : 'none');
+  document.querySelectorAll('.am-item.guest').forEach(el=> el.style.display = user ? 'none' : '');
+  if(user){
+    document.getElementById('amName').textContent = user.name || user.email;
+    document.getElementById('amEmail').textContent = user.email;
+    const plan = (typeof PLANS!=='undefined' && PLANS[user.plan]) ? PLANS[user.plan] : null;
+    const amPlan = document.getElementById('amPlan');
+    if(plan){ amPlan.textContent = plan.label + ' 플랜'; amPlan.hidden = false; }
+    const amUp = document.getElementById('amUpgrade'); if(amUp) amUp.style.display = (user.plan==='free') ? '' : 'none';
+    av.textContent = (user.name || user.email || 'U').trim().charAt(0).toUpperCase();
+  } else {
+    document.getElementById('amName').textContent = '게스트';
+    document.getElementById('amEmail').textContent = '로그인하면 크레딧·예약이 저장돼요';
+    av.textContent = 'D';
+  }
+
+  av.addEventListener('click', (e)=>{ e.stopPropagation(); menu.hidden = !menu.hidden; });
+  document.addEventListener('click', (e)=>{ if(!menu.hidden && !wrap.contains(e.target)) menu.hidden = true; });
+
+  const amLogout = document.getElementById('amLogout');
+  if(amLogout && typeof logout==='function') amLogout.addEventListener('click', logout);
+
+  // ── 모달 (사용량 / 설정) ──
+  const overlay = document.getElementById('modalOverlay');
+  const usageModal = document.getElementById('usageModal');
+  const settingsModal = document.getElementById('settingsModal');
+  function openModal(which){
+    menu.hidden = true; overlay.hidden = false;
+    usageModal.hidden = which!=='usage';
+    settingsModal.hidden = which!=='settings';
+    if(which==='usage') refreshUsage();
+    if(which==='settings') refreshSettings();
+  }
+  function closeModal(){ overlay.hidden = true; }
+  overlay.addEventListener('click', (e)=>{ if(e.target===overlay || e.target.closest('[data-close]')) closeModal(); });
+  document.addEventListener('keydown', (e)=>{ if(e.key==='Escape' && !overlay.hidden) closeModal(); });
+  const amUsage = document.getElementById('amUsage'); if(amUsage) amUsage.addEventListener('click', ()=>openModal('usage'));
+  const amSettings = document.getElementById('amSettings'); if(amSettings) amSettings.addEventListener('click', ()=>openModal('settings'));
+
+  function refreshUsage(){
+    if(!user) return;
+    const usage = getUsage(user.email);
+    const allow = planCredits(user.plan);
+    const unlimited = allow == null;
+    document.getElementById('usageText').textContent = unlimited
+      ? `${usage.toLocaleString('ko-KR')} 크레딧 · 무제한`
+      : `${usage.toLocaleString('ko-KR')} / ${allow.toLocaleString('ko-KR')} 크레딧`;
+    const pct = unlimited ? Math.min(100, usage) : Math.min(100, Math.round(usage/allow*100));
+    document.getElementById('usageFill').style.width = pct + '%';
+    document.getElementById('usageBar').classList.toggle('over', !unlimited && usage>=allow);
+    const left = unlimited ? 0 : Math.max(0, allow-usage);
+    document.getElementById('usageHint').textContent = unlimited
+      ? `${PLANS[user.plan].label} 플랜은 크레딧 제한이 없습니다.`
+      : `${left.toLocaleString('ko-KR')} 크레딧 남음 · 매달 1일 자동 충전`;
+    if(typeof getUsageHistory==='function' && typeof renderUsageChart==='function'){
+      const history = getUsageHistory(user.email);
+      renderUsageChart(document.getElementById('usageChart'), history);
+      const today = history[history.length-1];
+      const max = Math.max(0, ...history.map(d=>d.count));
+      document.getElementById('usageChartCaption').textContent = `오늘(${today.day}일) ${today.count} 크레딧 · 이번 달 최고 ${max} 크레딧`;
+    }
+  }
+  function refreshSettings(){
+    if(!user) return;
+    document.getElementById('setName').textContent = user.name || '-';
+    document.getElementById('setEmail').textContent = user.email;
+    document.getElementById('setPlan').textContent = PLANS[user.plan] ? `${PLANS[user.plan].label} (${PLANS[user.plan].priceLabel})` : user.plan;
+    document.getElementById('downgradeRow').style.display = (user.plan==='free') ? 'none' : 'flex';
+  }
+  const downgradeBtn = document.getElementById('downgradeBtn');
+  if(downgradeBtn) downgradeBtn.addEventListener('click', ()=>{
+    if(!confirm('구독을 해지하고 Free 플랜으로 전환할까요?')) return;
+    user.plan = 'free'; setUser(user);
+    refreshSettings(); updateCreditDisplay();
+    const amUp = document.getElementById('amUpgrade'); if(amUp) amUp.style.display='';
+    if(window.Toast) Toast.show('Free 플랜으로 전환됐어요.');
+  });
+
+  // 결제 후 ?upgraded= 반영 + 로그인 flash 토스트
+  if(user){
+    const qs = new URLSearchParams(location.search);
+    const up = qs.get('upgraded');
+    if(up && PLANS[up] && user.plan!==up){
+      user.plan = up; setUser(user); history.replaceState({}, '', location.pathname);
+      updateCreditDisplay();
+      if(window.Toast) Toast.show(`${PLANS[up].label} 플랜으로 업그레이드됐어요!`, {variant:'success'});
+    }
+    const flash = sessionStorage.getItem('dwf_flash');
+    if(flash){ sessionStorage.removeItem('dwf_flash'); try{ const {msg,variant}=JSON.parse(flash); if(window.Toast) Toast.show(msg,{variant}); }catch(e){} }
+  }
+
+  // 커맨드 팔레트: 모드/계정 명령 등록
+  if(window.CommandPalette && CommandPalette.register){
+    CommandPalette.register([
+      {label:'검색 모드로', action:()=>document.querySelector('.mode-btn[data-mode=search]').click()},
+      {label:'정리 모드로', action:()=>document.querySelector('.mode-btn[data-mode=digest]').click()},
+      {label:'아침 리포트 모드로', action:()=>document.querySelector('.mode-btn[data-mode=morning]').click()},
+    ].concat(user ? [
+      {label:'사용량 보기', action:()=>openModal('usage')},
+      {label:'설정 열기', action:()=>openModal('settings')},
+    ] : []));
+  }
+})();
+</script>
+</body>
+</html>

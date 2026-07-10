@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>서비스 상태 · DocFinder</title>
+<link rel="icon" type="image/svg+xml" href="shared/assets/favicon.svg">
+<link rel="stylesheet" href="shared/theme.css">
+<script src="shared/components/theme-toggle.js"></script>
+<style>
+  .head{padding:44px 0 24px;text-align:center;}
+  .overall{
+    display:inline-flex;align-items:center;gap:10px;padding:10px 20px;border-radius:20px;
+    background:var(--accent-soft);color:var(--accent);font-weight:700;font-size:14px;margin-top:14px;
+  }
+  .overall .dot{width:9px;height:9px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 4px var(--accent-soft);}
+
+  .svc-list{max-width:640px;margin:32px auto 0;display:flex;flex-direction:column;}
+  .svc{display:flex;align-items:center;justify-content:space-between;padding:16px 4px;border-top:1px solid var(--line);}
+  .svc:first-child{border-top:none;}
+  .svc .name{font-size:14px;font-weight:600;}
+  .svc .desc{font-size:12px;color:var(--muted);margin-top:2px;}
+  .svc .state{display:flex;align-items:center;gap:7px;font-size:13px;font-weight:600;color:var(--accent);}
+  .svc .state .dot{width:8px;height:8px;border-radius:50%;background:var(--accent);}
+
+  .note-box{max-width:640px;margin:36px auto 0;}
+</style>
+</head>
+<body>
+<script src="shared/components/icons.js"></script>
+
+<nav class="site-nav">
+  <a href="index.html" class="brand">DocFinder</a>
+  <div class="links">
+    <button type="button" class="theme-toggle btn btn-ghost" style="padding:7px 10px;font-size:12px;"><svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg>다크 모드</button>
+    <a href="pricing.html">요금제</a>
+    <a href="login.html">로그인</a>
+  </div>
+</nav>
+
+<div class="wrap">
+  <div class="head">
+    <div class="kicker" style="justify-content:center;">서비스 상태</div>
+    <h1>모든 시스템 정상 운영 중</h1>
+    <div class="overall"><span class="dot"></span> All Systems Operational</div>
+  </div>
+
+  <div class="svc-list">
+    <div class="svc">
+      <div>
+        <div class="name">문서 검색 엔진</div>
+        <div class="desc">PDF·Word·Excel·CSV·TXT 파싱 및 검색 (브라우저 내 처리)</div>
+      </div>
+      <div class="state"><span class="dot"></span> 정상</div>
+    </div>
+    <div class="svc">
+      <div>
+        <div class="name">AI 유사어 제안</div>
+        <div class="desc">Groq API 연동 (api/synonyms.js)</div>
+      </div>
+      <div class="state"><span class="dot"></span> 정상</div>
+    </div>
+    <div class="svc">
+      <div>
+        <div class="name">로그인</div>
+        <div class="desc">이메일 로그인 · Google Identity Services</div>
+      </div>
+      <div class="state"><span class="dot"></span> 정상</div>
+    </div>
+    <div class="svc">
+      <div>
+        <div class="name">결제</div>
+        <div class="desc">Stripe Checkout (테스트 모드)</div>
+      </div>
+      <div class="state"><span class="dot"></span> 정상</div>
+    </div>
+    <div class="svc">
+      <div>
+        <div class="name">웹사이트</div>
+        <div class="desc">랜딩 · 대시보드 · 정적 페이지 (Vercel)</div>
+      </div>
+      <div class="state"><span class="dot"></span> 정상</div>
+    </div>
+  </div>
+
+  <div class="note-box card">
+    <div class="card-body">
+      이 페이지는 포트폴리오 데모용 정적 페이지입니다. 실제 모니터링 시스템(Uptime 체크, 에러율 집계 등)에 연결되어
+      있지 않고, 각 항목의 상태는 고정값입니다. 실제 서비스라면 헬스체크 엔드포인트 + 모니터링 도구(예: Better
+      Uptime, Pingdom)와 연동해 자동으로 갱신되어야 합니다.
+    </div>
+  </div>
+</div>
+
+<footer class="site-footer">© 2026 DocFinder · 개인 포트폴리오 프로젝트</footer>
+
+<script src="shared/auth.js"></script>
+</body>
+</html>

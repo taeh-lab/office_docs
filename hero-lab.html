@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hero Lab · 시네마틱 검색 연출</title>
+<link rel="icon" type="image/svg+xml" href="shared/assets/favicon.svg">
+<link rel="stylesheet" href="shared/theme.css">
+<style>
+  body{overflow:hidden;}
+
+  /* 무대: 화면 전체 */
+  .cine{
+    position:relative;height:100vh;min-height:600px;overflow:hidden;
+    background:
+      radial-gradient(70% 55% at 12% 8%, color-mix(in srgb, #17c996 20%, transparent), transparent 60%),
+      radial-gradient(70% 55% at 90% 92%, color-mix(in srgb, #12a5a0 18%, transparent), transparent 60%),
+      var(--paper);
+  }
+
+  /* 흩어진 문서 카드 */
+  .doc{
+    position:absolute;left:50%;top:50%;width:230px;
+    transform:translate(-50%,-50%) translate(var(--x),var(--y)) rotate(var(--r));
+    background:var(--white);border:1px solid var(--line);border-radius:12px;
+    box-shadow:0 1px 2px rgba(30,25,15,.05), 0 20px 40px -24px rgba(30,25,15,.4);
+    padding:14px 15px;opacity:0;
+    transition:transform 1.05s cubic-bezier(.22,1,.36,1), opacity .6s ease, filter .6s ease, box-shadow .6s ease;
+    will-change:transform,opacity;
+  }
+  .cine.in .doc{opacity:1;}
+  .cine.float .doc{animation:drift 7s ease-in-out infinite;}
+  @keyframes drift{0%,100%{margin-top:0;}50%{margin-top:-9px;}}
+
+  .doc .dh{display:flex;align-items:center;gap:7px;margin-bottom:10px;}
+  .doc .chip{font-family:var(--mono);font-size:9px;font-weight:700;padding:2px 6px;border-radius:4px;background:var(--accent-soft);color:var(--accent);}
+  .doc .fn{font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .doc .ln{display:block;height:7px;border-radius:4px;background:color-mix(in srgb,var(--line) 80%,transparent);margin:7px 0;}
+  .doc .ln.s{width:62%;}
+  .doc .ln.m{width:82%;}
+  .doc .tl{font-size:12px;color:var(--ink);line-height:1.5;margin:7px 0;}
+  .doc .tl mark{
+    background:linear-gradient(var(--hit),var(--hit)) no-repeat;background-size:0% 66%;background-position:0 84%;
+    border-radius:2px;padding:0 2px;font-weight:600;color:inherit;
+  }
+
+  /* 안 맞는 문서: 흐려짐 → 화면 밖으로 */
+  .doc.dim{filter:grayscale(.55);opacity:.28 !important;}
+  .doc.gone{opacity:0 !important;transform:translate(-50%,-50%) translate(var(--gx),var(--gy)) rotate(var(--gr)) scale(.82);}
+
+  /* 맞는 문서: 형광빛 + 가운데로 모여 정렬 */
+  .doc.hit{border-color:color-mix(in srgb,var(--accent) 45%,var(--line));box-shadow:0 0 0 1px color-mix(in srgb,var(--accent) 30%,transparent), 0 24px 50px -20px color-mix(in srgb,var(--accent) 55%,transparent);}
+  .doc.hit .tl mark{animation:sweep .5s ease forwards, glow 1.1s ease .2s;}
+  @keyframes sweep{to{background-size:100% 66%;}}
+  @keyframes glow{0%,100%{box-shadow:0 0 0 0 transparent;}45%{box-shadow:0 0 22px 5px color-mix(in srgb,var(--hit-line) 90%,transparent);}}
+  .cine.gathered .doc.hit{
+    animation:none;
+    transform:translate(-50%,-50%) translate(var(--sx),var(--sy)) rotate(0deg) scale(1.02);
+    z-index:6;
+  }
+  .cine.gathered .doc.hit .tl mark{background-size:100% 66%;}
+
+  /* 가운데 검색창 */
+  .stage{
+    position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:10;
+    width:min(440px,86vw);text-align:center;transition:transform .7s cubic-bezier(.22,1,.36,1), opacity .5s ease;
+  }
+  .cine.gathered .stage{transform:translate(-50%,-50%) translateY(-190px);}
+  .stage .eyebrow{font-size:12px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);margin-bottom:12px;}
+  .stage .searchbox{
+    display:flex;align-items:center;gap:9px;background:var(--white);
+    border:1px solid var(--line-strong);border-radius:12px;padding:13px 16px;
+    box-shadow:0 1px 2px rgba(30,25,15,.05), 0 24px 50px -24px color-mix(in srgb,var(--accent) 45%,transparent);
+    font-size:17px;font-weight:600;
+  }
+  .stage .searchbox .icon{width:18px;height:18px;color:var(--muted);flex:none;}
+  .stage .q{color:var(--ink);white-space:nowrap;}
+  .stage .caret{width:2px;height:19px;background:var(--accent);flex:none;animation:blink 1.05s step-end infinite;}
+  @keyframes blink{50%{opacity:0;}}
+
+  /* 결과 라벨 (작게, 은은하게 — 주인공은 아래 CTA) */
+  .verdict{
+    position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) translateY(148px);z-index:11;
+    display:flex;align-items:center;gap:7px;color:var(--muted);font-size:13px;font-weight:600;
+    opacity:0;transition:opacity .4s ease .35s;
+  }
+  .verdict .icon{width:15px;height:15px;color:var(--accent);}
+  .cine.gathered .verdict{opacity:1;}
+
+  /* 가운데 CTA — 애니메이션이 끝나면 떠오른다. 로그인 없이 바로 도구로. */
+  .cta-go{
+    position:absolute;left:50%;top:50%;z-index:12;text-decoration:none;
+    transform:translate(-50%,-50%) translateY(212px) scale(.96);
+    display:inline-flex;align-items:center;gap:9px;background:var(--accent);color:#fff;
+    padding:15px 30px;border-radius:14px;font-size:16px;font-weight:700;
+    box-shadow:0 20px 46px -14px color-mix(in srgb,var(--accent) 70%,transparent);
+    opacity:0;pointer-events:none;
+    transition:opacity .5s ease .5s, transform .6s cubic-bezier(.22,1,.36,1) .5s, background .15s;
+  }
+  .cta-go .icon{width:18px;height:18px;transition:transform .2s;}
+  .cta-go:hover{background:var(--accent-2, #26493f);}
+  .cta-go:hover .icon{transform:translateX(3px);}
+  .cine.gathered .cta-go{opacity:1;pointer-events:auto;transform:translate(-50%,-50%) translateY(202px) scale(1);}
+  .cta-sub{
+    position:absolute;left:50%;top:50%;z-index:12;transform:translate(-50%,-50%) translateY(252px);
+    font-size:12px;color:var(--muted);opacity:0;transition:opacity .5s ease .7s;
+  }
+  .cine.gathered .cta-sub{opacity:1;}
+
+  .replay{
+    position:absolute;bottom:22px;left:50%;transform:translateX(-50%);z-index:12;
+    font-size:12px;color:var(--muted);background:var(--white);border:1px solid var(--line);
+    border-radius:20px;padding:7px 15px;cursor:pointer;font-family:var(--sans);opacity:.85;
+  }
+  .replay:hover{color:var(--accent);border-color:var(--accent);}
+
+  @media(max-width:720px){ .doc{width:180px;transform:translate(-50%,-50%) translate(calc(var(--x)*.5),calc(var(--y)*.6)) rotate(var(--r));} }
+  @media(prefers-reduced-motion:reduce){ .cine.float .doc{animation:none;} }
+</style>
+</head>
+<body>
+<script src="shared/components/icons.js"></script>
+
+<section class="cine" id="cine">
+  <div class="stage" id="stage">
+    <div class="eyebrow">AI 문서 검색</div>
+    <div class="searchbox">
+      <svg class="icon" aria-hidden="true"><use href="#i-search"></use></svg>
+      <span class="q" id="q"></span><span class="caret"></span>
+    </div>
+  </div>
+  <div class="verdict" id="verdict">
+    <svg class="icon" aria-hidden="true"><use href="#i-check-check"></use></svg>
+    <span id="verdictText">3개 문서에서 찾음</span>
+  </div>
+  <a class="cta-go" id="ctaGo" href="tool.html">
+    <span>지금 바로 써보기</span>
+    <svg class="icon" aria-hidden="true"><use href="#i-arrow-right"></use></svg>
+  </a>
+  <div class="cta-sub">가입·로그인 없이 브라우저에서 바로 실행</div>
+  <button class="replay" id="replay" type="button">↻ 다시 재생</button>
+</section>
+
+<script>
+(function(){
+  const cine = document.getElementById('cine');
+  const qEl = document.getElementById('q');
+  const verdictText = document.getElementById('verdictText');
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // 문서 6개 — 흩어진 위치(x,y,회전) / 화면 밖으로 나갈 위치(gx,gy) / 모였을 때 슬롯(sx,sy)
+  const DOCS = [
+    { tag:'PDF',  fn:'2024년_공급계약서.pdf', term:'계약금', pre:'', post:' 지급은 착수일로부터 7일', x:-360,y:-140,r:-10, gx:-780,gy:-260,gr:-24, sx:0,sy:-84, match:true },
+    { tag:'DOCX', fn:'표준계약_개정본.docx',   term:'계약금', pre:'', post:' 30% 선지급 후 잔금', x:350,y:-165,r:9,  gx:820,gy:-230,gr:20,  sx:0,sy:0,   match:true },
+    { tag:'PDF',  fn:'발주_계약서_final.pdf',  term:'계약금', pre:'', post:' 및 잔금 분할 지급', x:-300,y:150,r:8,  gx:-760,gy:320,gr:18,  sx:0,sy:84,  match:true },
+    { tag:'XLSX', fn:'견적서_3분기.xlsx',       term:'단가',   pre:'', post:' 45,000원 / 개당',   x:360,y:150,r:-9, gx:840,gy:300,gr:-22, sx:0,sy:0,   match:false },
+    { tag:'TXT',  fn:'회의록_0521.txt',          term:'',       pre:'일정 협의 및 담당자 배정', post:'', x:-150,y:-260,r:13, gx:-560,gy:-460,gr:26, sx:0,sy:0, match:false },
+    { tag:'XLSX', fn:'품목명세_초안.xlsx',        term:'',       pre:'수량 · 규격 · 비고 정리', post:'', x:150,y:255,r:-12, gx:560,gy:520,gr:-26, sx:0,sy:0, match:false },
+  ];
+  const QUERY = '계약금';
+
+  // 카드 DOM 생성
+  DOCS.forEach(d=>{
+    const el = document.createElement('div');
+    el.className = 'doc';
+    el.style.cssText = `--x:${d.x}px;--y:${d.y}px;--r:${d.r}deg;--gx:${d.gx}px;--gy:${d.gy}px;--gr:${d.gr}deg;--sx:${d.sx}px;--sy:${d.sy}px`;
+    const line = d.term
+      ? `<div class="tl">${d.pre}<mark>${d.term}</mark>${d.post}</div>`
+      : `<div class="tl">${d.pre}${d.post}</div>`;
+    el.innerHTML =
+      `<div class="dh"><span class="chip">${d.tag}</span><span class="fn">${d.fn}</span></div>
+       <span class="ln m"></span>
+       ${line}
+       <span class="ln s"></span>`;
+    d.el = el;
+    cine.insertBefore(el, document.getElementById('verdict'));
+  });
+
+  const T = [];
+  function clearTimers(){ T.forEach(clearTimeout); T.length = 0; }
+  function at(ms, fn){ T.push(setTimeout(fn, ms)); }
+
+  function typeQuery(word, cb){
+    qEl.textContent = '';
+    if(reduced){ qEl.textContent = word; cb && cb(); return; }
+    let i = 0;
+    const id = setInterval(()=>{
+      qEl.textContent = word.slice(0, ++i);
+      if(i >= word.length){ clearInterval(id); cb && cb(); }
+    }, 105);
+    T.push(()=>clearInterval(id));
+  }
+
+  function reset(){
+    clearTimers();
+    cine.classList.remove('in','float','gathered');
+    DOCS.forEach(d=>d.el.classList.remove('hit','dim','gone'));
+    qEl.textContent = '';
+  }
+
+  function play(){
+    reset();
+    const matchCount = DOCS.filter(d=>d.match).length;
+    verdictText.textContent = `${matchCount}개 문서에서 찾음`;
+
+    // 1) 흩어진 카드 등장 (살짝 스태거) + 부유
+    at(60, ()=>cine.classList.add('in'));
+    at(900, ()=>cine.classList.add('float'));
+
+    // 디버그: #scatter 로 열면 흩어진 상태에서 멈춘다 (연출 확인용)
+    if(location.hash.indexOf('scatter') >= 0) return;
+
+    // 2) 검색어 타이핑
+    at(reduced ? 200 : 1500, ()=>typeQuery(QUERY, ()=>{
+      // 3) 형광빛 / 흐려짐
+      at(reduced ? 0 : 350, ()=>{
+        cine.classList.remove('float');
+        DOCS.forEach((d,i)=> at(i*90, ()=> d.el.classList.add(d.match ? 'hit' : 'dim')));
+      });
+      // 4) 수렴 + 정리 + 결과
+      at(reduced ? 200 : 1250, ()=>{
+        DOCS.forEach(d=>{ if(!d.match) d.el.classList.add('gone'); });
+        cine.classList.add('gathered');
+      });
+    }));
+
+    // 애니메이션은 한 번 재생 후 정렬된 상태(+CTA)로 멈춘다. 다시 보려면 "다시 재생".
+  }
+
+  document.getElementById('replay').addEventListener('click', play);
+  play();
+})();
+</script>
+</body>
+</html>

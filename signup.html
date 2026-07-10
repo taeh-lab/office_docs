@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>가입하기 · DocFinder</title>
+<link rel="icon" type="image/svg+xml" href="shared/assets/favicon.svg">
+<link rel="stylesheet" href="shared/theme.css">
+<script src="shared/components/theme-toggle.js"></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<style>
+  /* 좌: 브랜드 패널 / 우: 폼 — 성공한 SaaS의 인증 화면 split 레이아웃 */
+  .authsplit{min-height:100vh;display:grid;grid-template-columns:1.05fr .95fr;}
+  .authside{
+    position:relative;overflow:hidden;color:#fff;
+    padding:52px 48px;display:flex;flex-direction:column;justify-content:space-between;gap:40px;
+    background:
+      radial-gradient(120% 80% at 0% 0%, color-mix(in srgb, #17c996 50%, transparent), transparent 55%),
+      radial-gradient(120% 80% at 100% 100%, color-mix(in srgb, #12a5a0 42%, transparent), transparent 55%),
+      linear-gradient(150deg, var(--accent), #22463b);
+  }
+  .authside .brand{color:#fff;font-weight:800;font-size:17px;text-decoration:none;display:inline-flex;align-items:center;gap:9px;letter-spacing:-.01em;}
+  .authside .brand::before{content:"";width:10px;height:10px;border-radius:3px;background:#fff;display:inline-block;}
+  .authside .pitch h2{font-size:29px;line-height:1.32;margin:0 0 24px;font-weight:800;letter-spacing:-.02em;color:#fff;word-break:keep-all;text-wrap:balance;}
+  .authside .points{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:14px;}
+  .authside .points li{display:flex;align-items:flex-start;gap:11px;font-size:14px;color:rgba(255,255,255,.92);line-height:1.5;}
+  .authside .points .icon{width:19px;height:19px;flex:none;margin-top:1px;opacity:.95;}
+  .authside .foot{font-size:12px;color:rgba(255,255,255,.72);}
+
+  .authform-col{display:flex;align-items:center;justify-content:center;padding:40px 24px;}
+  .authcard{width:100%;max-width:400px;}
+  .authcard .card-body{padding:30px 28px;}
+  .authhead{text-align:center;margin-bottom:22px;}
+  .authhead .brand{font-weight:800;font-size:16px;color:var(--ink);text-decoration:none;display:inline-flex;align-items:center;gap:8px;margin-bottom:16px;}
+  .authhead .brand::before{content:"";width:9px;height:9px;border-radius:2px;background:var(--accent);display:inline-block;}
+  .authhead h1{font-size:21px;margin:0 0 4px;}
+  .authhead p{font-size:13px;color:var(--muted);margin:0;}
+  .divider{display:flex;align-items:center;gap:10px;margin:18px 0;font-size:12px;color:var(--muted);}
+  .divider::before,.divider::after{content:"";flex:1;height:1px;background:var(--line);}
+  .switch{text-align:center;font-size:13px;color:var(--muted);margin-top:16px;}
+  .err{font-size:13px;color:var(--danger);margin-top:10px;display:none;}
+  .err.show{display:block;}
+  .demo-hint{margin-top:16px;font-size:11.5px;color:var(--muted);text-align:center;line-height:1.65;
+    background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:9px 13px;}
+  @media(min-width:821px){ .authhead .brand{display:none;} }
+  @media(max-width:820px){
+    .authsplit{grid-template-columns:1fr;min-height:100vh;}
+    .authside{display:none;}
+  }
+</style>
+</head>
+<body>
+<script src="shared/components/icons.js"></script>
+
+<div class="authsplit">
+  <aside class="authside">
+    <a href="index.html" class="brand">DocFinder</a>
+    <div class="pitch">
+      <h2>카드 등록 없이<br>지금 바로 시작하세요</h2>
+      <ul class="points">
+        <li><svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg>PDF·Word·Excel·CSV·TXT를 한 번에 업로드</li>
+        <li><svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg>어느 문서 몇 번째 줄인지까지 정확히 표시</li>
+        <li><svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg>문서 본문은 브라우저 안에서만 처리 — 서버 전송 없음</li>
+        <li><svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg>검색 결과를 엑셀로 바로 내보내기</li>
+      </ul>
+    </div>
+    <div class="foot">포트폴리오 데모 · 실제 청구나 서버 인증 없이 동작합니다</div>
+  </aside>
+
+  <div class="authform-col">
+    <div class="authcard card">
+      <div class="card-body">
+        <div class="authhead">
+          <a href="index.html" class="brand">DocFinder</a>
+          <h1>무료로 시작하기</h1>
+          <p>카드 등록 없이 바로 대시보드로 이동합니다</p>
+        </div>
+
+        <div id="googleBtn"></div>
+
+        <div class="divider">또는 이메일로</div>
+
+        <form id="signupForm">
+          <label for="name">이름</label>
+          <input type="text" id="name" required placeholder="홍길동">
+          <label for="email">이메일</label>
+          <input type="email" id="email" required placeholder="you@example.com">
+          <label for="password">비밀번호</label>
+          <input type="password" id="password" required placeholder="비밀번호">
+          <button type="submit" class="btn btn-primary btn-block" style="margin-top:18px">무료로 가입</button>
+          <div class="err" id="err">모든 항목을 입력해 주세요.</div>
+        </form>
+
+        <div class="switch">이미 계정이 있으신가요? <a href="login.html">로그인</a></div>
+        <div class="demo-hint">데모 가입이라 실제 인증·DB 없이 이 브라우저에만 저장돼요. 비밀번호는 아무 값이나 넣어도 됩니다.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="shared/config.js"></script>
+<script src="shared/auth.js"></script>
+<script src="shared/components/command-palette.js"></script>
+<script>
+  function nextUrl(){
+    return new URLSearchParams(location.search).get('next') || 'dashboard.html';
+  }
+
+  function signUp(email, name){
+    setUser({ email, name, plan:'free' }); // 가입은 항상 Free 플랜으로 새 세션 시작
+    sessionStorage.setItem('dwf_flash', JSON.stringify({ msg:`${name}님, 가입 완료! 무료로 시작해보세요`, variant:'success' }));
+    location.href = nextUrl();
+  }
+
+  document.getElementById('signupForm').addEventListener('submit', e=>{
+    e.preventDefault();
+    const name = document.getElementById('name').value.trim();
+    const email = document.getElementById('email').value.trim();
+    const password = document.getElementById('password').value;
+    const err = document.getElementById('err');
+    if(!name || !email || !password){ err.classList.add('show'); return; }
+    err.classList.remove('show');
+    signUp(email, name);
+  });
+
+  window.addEventListener('load', ()=>{
+    initGoogleSignIn('googleBtn', user => signUp(user.email, user.name));
+  });
+</script>
+</body>
+</html>

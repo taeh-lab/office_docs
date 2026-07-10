@@ -1,0 +1,9 @@
+{
+  "name": "doc-word-finder",
+  "version": "1.0.0",
+  "description": "여러 문서를 한 번에 훑어 단어를 찾아 엑셀로 뽑아주는 도구. Groq LLM으로 유사어 제안, 실패 시 내장 사전 폴백.",
+  "private": true,
+  "scripts": {
+    "dev": "vercel dev"
+  }
+}
