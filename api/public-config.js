@@ -16,5 +16,7 @@ export default function handler(req, res) {
   res.status(200).json({
     googleApiKey: process.env.GOOGLE_API_KEY || '',
     tossClientKey: process.env.TOSS_CLIENT_KEY || '',   // 토스 클라이언트 키(공개값)
+    // 진단용: 시크릿 키는 값을 노출하지 않고 "설정 여부"만 boolean으로 알린다(서버 전용 값 보호).
+    tossSecretConfigured: !!process.env.TOSS_SECRET_KEY,
   });
 }
