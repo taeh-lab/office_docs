@@ -18,5 +18,16 @@ export default function handler(req, res) {
     tossClientKey: process.env.TOSS_CLIENT_KEY || '',   // 토스 클라이언트 키(공개값)
     // 진단용: 시크릿 키는 값을 노출하지 않고 "설정 여부"만 boolean으로 알린다(서버 전용 값 보호).
     tossSecretConfigured: !!process.env.TOSS_SECRET_KEY,
+    // 사업자정보(전자상거래법상 사이트에 공개 표시가 의무인 값) — env에서 읽어 푸터에 표시.
+    // 리포에 커밋하지 않고 Vercel 환경변수로 관리. 비면 푸터는 "[…준비중]" 플레이스홀더.
+    business: {
+      company:     process.env.BIZ_COMPANY || 'citidel (시타델)',
+      ceo:         process.env.BIZ_CEO || '윤태훈',
+      bizNo:       process.env.BIZ_NO || '',
+      mailOrderNo: process.env.BIZ_MAIL_ORDER_NO || '',
+      address:     process.env.BIZ_ADDRESS || '',
+      email:       process.env.BIZ_EMAIL || '',
+      phone:       process.env.BIZ_PHONE || '',
+    },
   });
 }
