@@ -614,36 +614,30 @@ if(optOcr) optOcr.addEventListener('change', ()=>{ if(optOcr.checked) reparseSca
 
 /* ================= 구글 드라이브에서 가져오기 ================= */
 const driveBtn = $('driveBtn'), driveHint = $('driveHint');
+// 클릭 핸들러는 항상 연결. 설정 준비 여부(키 로드 완료)는 refreshDriveConfigUI가 버튼 활성/비활성으로 반영.
 if(driveBtn){
-  const configured = !!(window.DrivePicker && DrivePicker.isConfigured());
-  if(!configured){
+  driveBtn.addEventListener('click', ()=>{
+    const orig = driveBtn.innerHTML;
     driveBtn.disabled = true;
-    driveBtn.title = 'SETUP-TODO.md 5번 참고 — 구글 드라이브 연결 설정 필요';
-    if(driveHint) driveHint.textContent = '드라이브 연결은 설정이 필요합니다 (SETUP-TODO.md 5번). 내 컴퓨터 업로드는 그대로 사용하세요.';
-  } else {
-    driveBtn.addEventListener('click', ()=>{
-      const orig = driveBtn.innerHTML;
-      driveBtn.disabled = true;
-      driveBtn.innerHTML = '<span class="spinner"></span>불러오는 중…';
-      DrivePicker.open(
-        (fs)=>{
-          driveBtn.disabled = false; driveBtn.innerHTML = orig;
-          if(fs && fs.length){
-            addFiles(fs);
-            if(driveHint) driveHint.textContent = `드라이브에서 ${fs.length}개 문서를 불러왔어요.`;
-          }
-        },
-        (err)=>{
-          driveBtn.disabled = false; driveBtn.innerHTML = orig;
-          if(driveHint){
-            driveHint.textContent = (err && err.message === '__CANCELLED__')
-              ? '드라이브 인증이 취소됐어요. 다시 하려면 버튼을 눌러 주세요.'
-              : '드라이브 불러오기 실패: ' + ((err && err.message) || '알 수 없는 오류');
-          }
+    driveBtn.innerHTML = '<span class="spinner"></span>불러오는 중…';
+    DrivePicker.open(
+      (fs)=>{
+        driveBtn.disabled = false; driveBtn.innerHTML = orig;
+        if(fs && fs.length){
+          addFiles(fs);
+          if(driveHint) driveHint.textContent = `드라이브에서 ${fs.length}개 문서를 불러왔어요.`;
         }
-      );
-    });
-  }
+      },
+      (err)=>{
+        driveBtn.disabled = false; driveBtn.innerHTML = orig;
+        if(driveHint){
+          driveHint.textContent = (err && err.message === '__CANCELLED__')
+            ? '드라이브 인증이 취소됐어요. 다시 하려면 버튼을 눌러 주세요.'
+            : '드라이브 불러오기 실패: ' + ((err && err.message) || '알 수 없는 오류');
+        }
+      }
+    );
+  });
 }
 
 /* ================= 자동 수집: 최근 바뀐 문서 ================= */
@@ -653,17 +647,24 @@ const collectRow = $('collectRow'), collectPeriods = $('collectPeriods'),
 let collectDays = 1;
 let foundDocs = [];
 
-// 자동 수집 버튼 = 팝오버 토글 (설정 안 됐으면 비활성)
+// 자동 수집 버튼 = 팝오버 토글 (핸들러 항상 연결; 비활성 상태는 refreshDriveConfigUI가 관리)
 if(collectToggle){
-  if(window.DrivePicker && DrivePicker.isConfigured()){
-    collectToggle.addEventListener('click', ()=>{
-      collectRow.style.display = (collectRow.style.display === 'block') ? 'none' : 'block';
-    });
-  } else {
-    collectToggle.disabled = true;
-    collectToggle.title = '구글 드라이브 연결 설정이 필요합니다 (SETUP-TODO.md 5번)';
-  }
+  collectToggle.addEventListener('click', ()=>{
+    collectRow.style.display = (collectRow.style.display === 'block') ? 'none' : 'block';
+  });
 }
+
+// 드라이브 설정(키) 준비 상태를 버튼 활성/비활성에 반영.
+// 키는 비동기로 로드될 수 있어(config.js가 /api/public-config에서 받아옴) 처음엔 비활성일 수 있고,
+// dwf-config-ready 이벤트 때 다시 켠다.
+function refreshDriveConfigUI(){
+  const ok = !!(window.DrivePicker && DrivePicker.isConfigured());
+  if(driveBtn){ driveBtn.disabled = !ok; driveBtn.title = ok ? '' : '구글 드라이브 연결 설정이 필요합니다 (SETUP-TODO.md 5번)'; }
+  if(collectToggle){ collectToggle.disabled = !ok; collectToggle.title = ok ? '' : '구글 드라이브 연결 설정이 필요합니다 (SETUP-TODO.md 5번)'; }
+  if(driveHint && !ok) driveHint.textContent = '드라이브 연결 설정이 필요합니다 (SETUP-TODO.md 5번). 내 컴퓨터 업로드는 그대로 사용하세요.';
+}
+refreshDriveConfigUI();
+document.addEventListener('dwf-config-ready', refreshDriveConfigUI);
 // 팝오버 바깥을 클릭하면 닫기
 document.addEventListener('click', (e)=>{
   if(!collectRow || collectRow.style.display !== 'block') return;

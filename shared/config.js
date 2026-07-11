@@ -7,11 +7,13 @@
 // ─────────────────────────────────────────────────────────────
 const GOOGLE_CLIENT_ID = '800757732783-spmtgjkn5n4nfi56oq8qlqm3bfdtcrmj.apps.googleusercontent.com';
 
-// 구글 드라이브 연결(Picker)용 API 키. Client ID와 마찬가지로 브라우저에 노출되는 공개값이라
-// 여기 직접 넣어도 되지만, 반드시 Google Cloud에서 "Picker API 사용 설정 + 키 제한(HTTP 리퍼러)"을
-// 걸어 둘 것. 안 넣으면(YOUR_ 로 시작) 드라이브 버튼이 '설정 필요'로 비활성 — 앱은 그대로 동작.
-// 발급/설정 방법은 SETUP-TODO.md의 "5. 구글 드라이브 연결" 참고.
-const GOOGLE_API_KEY = 'AIzaSyCO0G-InXdGlpB6fjjD9nc5XXadurQBLo4';
+// 구글 드라이브 연결(Picker)용 API 키.
+// ★ 공개 리포에 커밋하지 않는다 — client-side 키라 브라우저엔 어차피 노출되지만, GitHub 공개
+//    리포에 남기면 시크릿 스캐너(GitGuardian/Google)가 계속 flag한다. 그래서:
+//    · 배포: Vercel 환경변수 GOOGLE_API_KEY → /api/public-config 가 런타임에 전달(아래 부트스트랩)
+//    · 로컬 개발: window.__GOOGLE_API_KEY = '...' 로 넣거나 gitignore된 로컬 스크립트 사용
+// 값이 비면 드라이브 버튼은 '설정 필요'로 비활성 — 업로드·검색·OCR·정리는 그대로 동작.
+var GOOGLE_API_KEY = (typeof window !== 'undefined' && window.__GOOGLE_API_KEY) || '';
 
 // ── 크레딧(토큰) 모델 · 용량 비례 ──────────────────────────────
 // 기능 잠금 없음: 모든 기능 전 플랜 공통. 차이는 "월 크레딧" 양뿐.
@@ -36,3 +38,21 @@ const PLANS = {
   middle: { label:'Middle', priceLabel:'₩19,900 / 월',  rank:2, credits:6000 },
   high:   { label:'High',   priceLabel:'₩39,900 / 월',  rank:3, credits:20000 },
 };
+
+// 배포 환경에선 리포에 없는 GOOGLE_API_KEY를 서버(/api/public-config)에서 받아 채운다.
+// 로컬 오버라이드(window.__GOOGLE_API_KEY)가 있으면 스킵. 로드되면 dwf-config-ready 이벤트를 쏴서
+// 드라이브 버튼 상태를 갱신하게 한다.
+(function(){
+  if (typeof window === 'undefined' || GOOGLE_API_KEY) return;
+  try {
+    fetch('/api/public-config')
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){
+        if (d && d.googleApiKey) {
+          GOOGLE_API_KEY = d.googleApiKey;
+          document.dispatchEvent(new Event('dwf-config-ready'));
+        }
+      })
+      .catch(function(){});
+  } catch(e){}
+})();
