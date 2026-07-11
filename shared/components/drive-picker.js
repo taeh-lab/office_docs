@@ -66,28 +66,44 @@
     }
   }
 
-  // GIS 토큰 클라이언트로 access token 발급 (필요 시 동의 팝업)
+  // GIS 토큰 클라이언트로 access token 발급.
+  // 로그인(신원)과 드라이브 권한(scope)은 구글에서 별개 흐름이라, 로그인해도 드라이브는 따로 인가받아야 한다.
+  // 마찰 최소화: (1) 로그인한 계정으로 바로(hint → 계정 선택 스킵) (2) 이전에 허용했으면 팝업 없이 조용히(prompt:'')
+  // → 최초 1회만 "드라이브 접근 허용"이 뜨고, 그 뒤 세션은 로그인만 하면 드라이브가 바로 열린다.
   function getToken(){
     return new Promise(function(res, rej){
+      var hint = '';
+      try { if(typeof getUser === 'function'){ var u = getUser(); hint = (u && u.email) || ''; } } catch(e){}
+
       if(!tokenClient){
         tokenClient = google.accounts.oauth2.initTokenClient({
           client_id: cfg('GOOGLE_CLIENT_ID'),
           scope: SCOPE,
-          callback: function(){}, // 아래에서 매 호출마다 교체
-          error_callback: function(err){
-            var t = (err && (err.type || err.message)) || '';
-            // 팝업 닫힘·취소는 오류가 아니라 사용자 취소 → 특수 마커로 구분
-            if(/closed|cancel|dismiss/i.test(t)) rej(new Error('__CANCELLED__'));
-            else rej(new Error((err && err.message) || '드라이브 인증 실패'));
-          }
+          callback: function(){},
+          error_callback: function(){}
         });
+      }
+
+      var triedConsent = false;
+      function attempt(prompt){
+        var opts = { prompt: prompt };
+        if(hint) opts.hint = hint;   // 로그인한 계정으로 바로 (계정 선택 스킵)
+        tokenClient.requestAccessToken(opts);
       }
       tokenClient.callback = function(resp){
         if(resp && resp.access_token){ accessToken = resp.access_token; res(accessToken); }
+        else if(!triedConsent){ triedConsent = true; attempt('consent'); }
         else rej(new Error('토큰 발급 실패'));
       };
-      // 이미 토큰이 있으면 조용히 재사용, 없으면 동의 화면
-      tokenClient.requestAccessToken({ prompt: accessToken ? '' : 'consent' });
+      tokenClient.error_callback = function(err){
+        var t = (err && (err.type || err.message)) || '';
+        if(/closed|cancel|dismiss/i.test(t)){ rej(new Error('__CANCELLED__')); return; }
+        // 조용히 시도했다가 동의가 필요해서 막힌 경우 → 동의 팝업으로 한 번 더
+        if(!triedConsent){ triedConsent = true; attempt('consent'); return; }
+        rej(new Error((err && err.message) || '드라이브 인증 실패'));
+      };
+
+      attempt('');   // 우선 팝업 없이 조용히 시도 (이전에 허용했으면 그대로 통과)
     });
   }
 

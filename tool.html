@@ -78,7 +78,8 @@
   .app{display:grid;grid-template-rows:58px 1fr;height:100vh;height:100dvh;}
 
   .topbar{display:flex;align-items:center;gap:16px;padding:0 18px;background:var(--white);border-bottom:1px solid var(--line);}
-  .brand{display:flex;align-items:center;gap:9px;font-weight:800;font-size:16px;letter-spacing:-.02em;}
+  .brand{display:flex;align-items:center;gap:9px;font-weight:800;font-size:16px;letter-spacing:-.02em;color:var(--ink);text-decoration:none;}
+  .brand:hover{opacity:.8;}
   .brand .dot{width:9px;height:9px;border-radius:50%;background:var(--accent);}
   .modes{display:flex;gap:2px;background:var(--paper);border:1px solid var(--line);border-radius:11px;padding:3px;margin:0 auto;}
   .mode-btn{display:flex;align-items:center;gap:7px;border:none;background:none;cursor:pointer;font-family:var(--sans);font-size:13.5px;font-weight:600;color:var(--muted);padding:7px 15px;border-radius:8px;transition:.14s;white-space:nowrap;}
@@ -340,7 +341,7 @@
 
   <!-- 상단: 브랜드 + 모드 스위처 + 크레딧/프로필 -->
   <div class="topbar">
-    <div class="brand"><span class="dot"></span>DocFinder</div>
+    <a class="brand" href="index.html"><span class="dot"></span>DocFinder</a>
     <div class="modes">
       <button class="mode-btn on" data-mode="search"><svg class="icon" aria-hidden="true"><use href="#i-search"></use></svg>검색</button>
       <button class="mode-btn" data-mode="digest"><svg class="icon" aria-hidden="true"><use href="#i-list-checks"></use></svg>정리</button>
