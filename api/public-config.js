@@ -29,10 +29,5 @@ export default function handler(req, res) {
       email:       process.env.BIZ_EMAIL || '',
       phone:       process.env.BIZ_PHONE || '',
     },
-    // [임시 진단] env 변수 "이름만" 노출(값 아님) — 사용자가 뭐라 이름 붙였는지 확인용.
-    // 시스템 변수 제외. 확인 후 제거함. 값은 절대 포함 안 함.
-    _debugKeys: Object.keys(process.env)
-      .filter(k => !/^(VERCEL|AWS|LAMBDA|NODE|PATH|HOME|LANG|TZ|PWD|SHLVL|HOSTNAME|NOW_|_|CI|TERM|EDGE)/.test(k))
-      .sort(),
   });
 }
