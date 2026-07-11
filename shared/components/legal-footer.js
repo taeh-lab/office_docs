@@ -10,7 +10,16 @@
 //   페이지에 <div id="legalFooter"></div> 를 두고 이 스크립트를 로드하면 그 자리에 렌더된다.
 // ─────────────────────────────────────────────────────────────
 (function () {
-  const DEFAULTS = { company: 'citidel (시타델)', ceo: '윤태훈', bizNo: '', mailOrderNo: '', address: '', email: '', phone: '' };
+  // 사업자정보(법정 공개 표시값). env(/api/public-config)로 덮어쓸 수 있으나, 없으면 이 값이 표시된다.
+  const DEFAULTS = {
+    company:     '시티델(citidel)',
+    ceo:         '윤태훈',
+    bizNo:       '771-26-02153',
+    mailOrderNo: '',   // 통신판매업 신고번호 — 나오면 채움
+    address:     '서울특별시 금천구 시흥대로 291',
+    email:       's01090533790@gmail.com',
+    phone:       '',
+  };
 
   function esc(s) {
     return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -21,7 +30,9 @@
   }
 
   function build(info) {
-    const b = Object.assign({}, DEFAULTS, info || {});
+    // 빈 문자열/누락 값이 실제 기본값을 덮지 않도록, 값이 있는 필드만 override.
+    const b = Object.assign({}, DEFAULTS);
+    if (info) for (const k in info) { if (info[k] != null && String(info[k]).trim() !== '') b[k] = info[k]; }
     const phone = (b.phone && b.phone.trim()) ? ' · 고객센터 ' + esc(b.phone) : '';
     return `
     <footer class="site-footer">

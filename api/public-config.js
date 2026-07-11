@@ -21,12 +21,12 @@ export default function handler(req, res) {
     // 사업자정보(전자상거래법상 사이트에 공개 표시가 의무인 값) — env에서 읽어 푸터에 표시.
     // 리포에 커밋하지 않고 Vercel 환경변수로 관리. 비면 푸터는 "[…준비중]" 플레이스홀더.
     business: {
-      company:     process.env.BIZ_COMPANY || 'citidel (시타델)',
-      ceo:         process.env.BIZ_CEO || '윤태훈',
-      bizNo:       process.env.BIZ_NO || '',
+      company:     process.env.BIZ_COMPANY || '시티델(citidel)',
+      ceo:         process.env.BIZ_CEO || process.env.BIZ_NAME || '윤태훈',
+      bizNo:       process.env.BIZ_NO || '771-26-02153',
       mailOrderNo: process.env.BIZ_MAIL_ORDER_NO || '',
-      address:     process.env.BIZ_ADDRESS || '',
-      email:       process.env.BIZ_EMAIL || '',
+      address:     process.env.BIZ_ADDRESS || '서울특별시 금천구 시흥대로 291',
+      email:       process.env.BIZ_EMAIL || 's01090533790@gmail.com',
       phone:       process.env.BIZ_PHONE || '',
     },
   });
