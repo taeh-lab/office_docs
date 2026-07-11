@@ -84,6 +84,44 @@
 > 안 넣으면: "이메일로 받기"가 "메일 발송 설정 필요" 안내만 뜸. 미리보기·엑셀 다운로드는 그대로 동작.
 > ⚠️ 로컬(localhost)에선 서버리스 함수가 안 돌아서 메일 발송은 **배포 환경에서만** 확인 가능.
 
+## 7. 자동 발송 준비 — 오프라인 드라이브 접근 + 스케줄 저장 (B2)
+
+> "매일 자동으로 받기(베타)"를 살리는 설정. 서버가 나 없을 때도 드라이브를 읽으려면 **refresh token**이 필요하고, 스케줄과 함께 **Supabase**에 저장한다. (실제 무인 발송 스케줄러는 B3)
+
+**7-1. Supabase 프로젝트 + 테이블**
+- [ ] [supabase.com](https://supabase.com) → 새 프로젝트 생성
+- [ ] SQL Editor에서 아래 실행 (스케줄·토큰 저장 테이블):
+  ```sql
+  create table if not exists automations (
+    email        text primary key,
+    refresh_token text,
+    work_time    text,
+    categories   text,
+    report_email text,
+    timezone     text default 'Asia/Seoul',
+    last_run_date text,
+    updated_at   timestamptz default now()
+  );
+  alter table automations enable row level security;  -- service_role 키(서버)만 접근, 클라이언트 차단
+  ```
+- [ ] Project Settings → API 에서 값 복사 → Vercel 환경변수:
+  - `SUPABASE_URL` = `https://xxxx.supabase.co`
+  - `SUPABASE_SERVICE_KEY` = **service_role** 키 (⚠️ 절대 비밀 — 서버 함수만 씀. anon 키 말고 service_role)
+
+**7-2. Google OAuth (오프라인/코드 플로우)**
+- [ ] Vercel 환경변수에 `GOOGLE_CLIENT_SECRET` = `GOCSPX-...` (2번에서 만든 OAuth 클라이언트의 시크릿. `.env` 주석에 있음)
+- [ ] Google 콘솔 → 2번 OAuth 클라이언트 → **"승인된 리디렉션 URI"** 에 추가:
+  - `https://office-docs.vercel.app/api/oauth-callback`
+  - (자바스크립트 원본과 다른 항목임 — "리디렉션 URI"에 넣어야 함)
+- [ ] 동의 화면 범위에 `.../auth/drive.readonly` 가 이미 있으면 됨(5번에서 추가). `openid`·`email`은 기본 포함.
+
+**7-3. 재배포**
+- [ ] 위 환경변수(SUPABASE_URL / SUPABASE_SERVICE_KEY / GOOGLE_CLIENT_SECRET) 추가 후 **Redeploy**
+
+> 안 넣으면: "자동 발송 켜기"가 "서버 설정 전" 안내만 뜸. 미리보기·이메일로 받기는 그대로 동작.
+> 검증: 켠 뒤 `https://office-docs.vercel.app/api/test-offline?email=<본인이메일>` 를 열면, 서버가 저장된 토큰으로 드라이브 최근 파일을 읽어 `offline_access: works` 를 돌려준다(= 무인 접근 가능 증명).
+> ⚠️ 데모 한계: refresh token을 평문 저장한다 — 프로덕션이라면 암호화(KMS 등) 필요.
+
 ---
 
 체크리스트 위에서부터 순서대로 안 해도 됨 — 각 항목은 서로 독립적이고, 안 넣은 항목은 전부 자동으로 데모/폴백 동작으로 대체되도록 만들어 놨음.

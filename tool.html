@@ -478,9 +478,20 @@
           <span class="count" id="mrHint"></span>
         </div>
         <div id="mrList" style="margin-top:14px;"></div>
-        <div style="margin-top:14px;padding:11px 15px;border-radius:10px;background:var(--paper);border:1px dashed var(--line-strong);font-size:12px;color:var(--muted);">
-          지금은 <strong>미리보기</strong>(어제 바뀐 문서를 실제로 모아 정리)와 <strong>예약 저장</strong>까지 동작합니다.
-          정해진 시각에 <strong>사람 없이 자동 발송</strong>되려면 서버 배포(예약작업·메일)가 필요해요 — 다음 단계입니다.
+
+        <!-- 매일 자동으로 받기 (B2: 오프라인 드라이브 연결 + 스케줄 저장) -->
+        <div style="margin-top:16px;padding-top:14px;border-top:1px dashed var(--line);">
+          <div style="font-size:13px;font-weight:700;margin-bottom:6px;display:flex;align-items:center;gap:7px;">
+            <svg class="icon" aria-hidden="true" style="width:15px;height:15px;color:var(--accent)"><use href="#i-webhook"></use></svg>매일 자동으로 받기
+            <span style="font-size:10px;font-weight:700;color:var(--accent);background:var(--accent-soft);padding:2px 7px;border-radius:20px;">베타</span>
+          </div>
+          <p class="sub" style="margin:0 0 10px;font-size:12.5px;">
+            위 설정(항목·출근 시각·이메일)을 저장하고 드라이브를 <strong>자동화용으로 연결</strong>하면, 서버가 나 없을 때도 어제 바뀐 문서를 정리해 보낼 준비가 됩니다. <span style="color:var(--muted)">(무인 발송 스케줄러 가동은 순차 오픈)</span>
+          </p>
+          <div class="actionrow" style="margin-top:0;">
+            <button class="btn btn-primary" id="mrAutoBtn"><svg class="icon" aria-hidden="true"><use href="#i-webhook"></use></svg>자동 발송 켜기</button>
+            <span class="count" id="mrAutoHint"></span>
+          </div>
         </div>
       </section>
 
@@ -783,6 +794,35 @@ if(morningCard){
   mrSaveBtn.addEventListener('click', mrSave);
   const mrEmailBtn = $('mrEmailBtn');
   if(mrEmailBtn) mrEmailBtn.addEventListener('click', sendReportEmail);
+  const mrAutoBtn = $('mrAutoBtn');
+  if(mrAutoBtn) mrAutoBtn.addEventListener('click', enableAutomation);
+}
+
+// 자동 발송 켜기: 스케줄을 서버(Supabase)에 저장 → 오프라인 드라이브 연결(refresh token) 동의로 이동
+async function enableAutomation(){
+  const hint = $('mrAutoHint');
+  const u = (typeof getUser === 'function') ? getUser() : null;
+  const email = (u && u.email) || mrEmail.value.trim();
+  if(!email){ hint.textContent = '로그인 또는 받을 이메일이 필요해요.'; return; }
+  const cats = mrCats.value.trim();
+  if(!cats){ hint.textContent = '정리할 항목을 먼저 입력하세요.'; return; }
+
+  const btn = $('mrAutoBtn'); const orig = btn.innerHTML;
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>설정 저장 중…';
+  try{
+    const r = await fetch('/api/save-schedule', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ email, work_time: mrTime.value, categories: cats, report_email: mrEmail.value.trim() || email })
+    });
+    if(r.status === 503){ hint.textContent = '자동 발송은 아직 서버 설정 전이에요 (Supabase 필요 — SETUP-TODO 7번).'; btn.disabled=false; btn.innerHTML=orig; return; }
+    if(!r.ok){ hint.textContent = '설정 저장에 실패했어요.'; btn.disabled=false; btn.innerHTML=orig; return; }
+    // 저장 성공 → 오프라인 드라이브 연결 동의로 이동 (돌아오면 ?automation=ok)
+    hint.textContent = '드라이브 자동화 연결로 이동합니다…';
+    location.href = '/api/oauth-start';
+  }catch(e){
+    hint.textContent = '자동 발송 설정 중 오류 (배포 환경에서만 동작).';
+    btn.disabled = false; btn.innerHTML = orig;
+  }
 }
 
 // 정리 리포트(lastDigest)를 엑셀로 만들어 서버(/api/send-report → Resend)로 이메일 발송
@@ -1476,6 +1516,26 @@ function highlight(text, terms){
     const el = document.getElementById(views[b.dataset.mode]); if(el) el.classList.add('on');
     const main = document.querySelector('.main'); if(main) main.scrollTop = 0;
   }));
+})();
+
+/* ===== 자동 발송 연결(oauth-callback) 결과 안내 (?automation=...) ===== */
+(function(){
+  const st = new URLSearchParams(location.search).get('automation');
+  if(!st) return;
+  const map = {
+    ok: '✓ 자동 발송 준비 완료 — 설정과 드라이브 자동 접근이 저장됐어요. (무인 발송 스케줄러 가동은 순차 오픈)',
+    denied: '드라이브 연결이 취소됐어요. 다시 "자동 발송 켜기"를 눌러 주세요.',
+    norefresh: '권한을 못 받았어요. 다시 시도해 주세요.',
+    notconfigured: '서버 설정(Supabase/Client Secret)이 아직이에요 (SETUP-TODO 7번).',
+    noemail: '구글 계정 이메일을 확인하지 못했어요.',
+    storefail: '저장에 실패했어요. 잠시 후 다시 시도해 주세요.',
+    error: '오류가 났어요. 다시 시도해 주세요.',
+  };
+  const msg = map[st] || '';
+  history.replaceState({}, '', location.pathname);
+  if(!msg) return;
+  const mb = document.querySelector('.mode-btn[data-mode=morning]'); if(mb) mb.click();
+  const h = document.getElementById('mrAutoHint'); if(h) h.textContent = msg;
 })();
 
 /* ================= 계정 메뉴 (사용량 · 설정 · 다크 · 업그레이드 · 로그아웃) ================= */
