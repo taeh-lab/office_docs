@@ -473,6 +473,7 @@
         </div>
         <div class="actionrow">
           <button class="btn btn-primary" id="mrPreviewBtn"><svg class="icon" aria-hidden="true"><use href="#i-repeat"></use></svg>지금 미리보기</button>
+          <button class="btn btn-ghost" id="mrEmailBtn"><svg class="icon" aria-hidden="true"><use href="#i-mail"></use></svg>이메일로 받기</button>
           <button class="btn btn-ghost" id="mrSaveBtn">예약 저장</button>
           <span class="count" id="mrHint"></span>
         </div>
@@ -779,6 +780,59 @@ if(morningCard){
   }catch(e){}
   mrPreviewBtn.addEventListener('click', mrPreview);
   mrSaveBtn.addEventListener('click', mrSave);
+  const mrEmailBtn = $('mrEmailBtn');
+  if(mrEmailBtn) mrEmailBtn.addEventListener('click', sendReportEmail);
+}
+
+// 정리 리포트(lastDigest)를 엑셀로 만들어 서버(/api/send-report → Resend)로 이메일 발송
+async function sendReportEmail(){
+  if(!lastDigest || !lastDigest.cats.length){ mrHint.textContent = '먼저 "지금 미리보기"로 리포트를 만들어 주세요.'; return; }
+  const to = mrEmail.value.trim();
+  if(!to){ mrHint.textContent = '받을 이메일을 입력하세요.'; return; }
+
+  const { cats, perCat } = lastDigest;
+  // 엑셀(요약+상세) → base64
+  const wb = XLSX.utils.book_new();
+  const summary = cats.map(c=>({ '항목':c, '건수':perCat[c].length }));
+  summary.push({ '항목':'합계', '건수':cats.reduce((s,c)=>s+perCat[c].length,0) });
+  const ws1 = XLSX.utils.json_to_sheet(summary); ws1['!cols'] = [{wch:22},{wch:8}];
+  XLSX.utils.book_append_sheet(wb, ws1, '요약');
+  const detail = [];
+  cats.forEach(c=>perCat[c].forEach(r=>detail.push({ '항목':c, '문서명':r.file, '형식':r.ext.toUpperCase(), '위치(줄/페이지)':String(r.loc), '해당 줄 내용':r.content })));
+  const ws2 = XLSX.utils.json_to_sheet(detail.length ? detail : [{'항목':'','문서명':'','형식':'','위치(줄/페이지)':'','해당 줄 내용':''}]);
+  ws2['!cols'] = [{wch:12},{wch:26},{wch:8},{wch:14},{wch:60}];
+  XLSX.utils.book_append_sheet(wb, ws2, '상세');
+  const b64 = XLSX.write(wb, { type:'base64', bookType:'xlsx' });
+
+  const total = cats.reduce((s,c)=>s+perCat[c].length,0);
+  const li = cats.map(c=>`<li><strong>${escapeHtml(c)}</strong> ${perCat[c].length}건</li>`).join('');
+  const html = `<div style="font-family:sans-serif;color:#1a1a1a">`
+    + `<h2 style="color:#2f5d50">DocFinder 정리 리포트</h2>`
+    + `<p>문서에서 항목별로 정리한 결과입니다 (총 <strong>${total}건</strong>).</p>`
+    + `<ul>${li}</ul><p style="color:#6b6558">자세한 내용은 첨부한 엑셀을 확인하세요.</p></div>`;
+  const stamp = new Date().toISOString().slice(0,10);
+
+  const btn = $('mrEmailBtn'); const orig = btn.innerHTML;
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>보내는 중…';
+  try{
+    const resp = await fetch('/api/send-report', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ to, subject:`DocFinder 정리 리포트 (${stamp})`, html, filename:`정리리포트_${stamp}.xlsx`, excelBase64:b64 })
+    });
+    if(resp.ok){
+      mrHint.textContent = `${to}로 리포트를 보냈어요. 메일함을 확인하세요.`;
+      if(window.Toast) Toast.show('리포트를 이메일로 보냈어요.');
+    }else{
+      const d = await resp.json().catch(()=>({}));
+      mrHint.textContent = (d.error==='resend_not_configured') ? '메일 발송이 아직 설정 안 됐어요 (서버에 RESEND_API_KEY 필요).'
+        : (d.error==='invalid_email') ? '이메일 주소를 확인해 주세요.'
+        : '메일 발송 실패 — 잠시 후 다시 시도해 주세요.';
+    }
+  }catch(e){
+    mrHint.textContent = '메일 발송 중 오류가 났어요 (배포 환경에서만 동작).';
+  }finally{
+    btn.disabled = false; btn.innerHTML = orig;
+  }
 }
 
 function morningKey(email){ return 'dwf_morning_' + (email || (mrEmail && mrEmail.value.trim()) || 'anon'); }
