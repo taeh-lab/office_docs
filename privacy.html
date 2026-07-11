@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>개인정보처리방침 · DocFinder</title>
+<link rel="icon" type="image/svg+xml" href="shared/assets/favicon.svg">
+<link rel="stylesheet" href="shared/theme.css">
+<script src="shared/components/theme-toggle.js"></script>
+<style>
+  .legal{max-width:760px;}
+  .legal .head{padding:44px 0 8px;}
+  .legal h1{font-size:26px;}
+  .legal .sub{color:var(--muted);font-size:14px;}
+  .legal .updated{font-size:12px;color:var(--muted);font-family:var(--mono);margin-top:6px;}
+  .legal article{margin-top:28px;}
+  .legal h2{font-size:16px;margin:30px 0 10px;padding-top:18px;border-top:1px solid var(--line);}
+  .legal h2:first-of-type{border-top:none;padding-top:0;}
+  .legal p,.legal li{font-size:14px;line-height:1.85;color:var(--ink);}
+  .legal ul,.legal ol{margin:8px 0;padding-left:20px;}
+  .legal li::marker{color:var(--muted);}
+  .legal table{width:100%;border-collapse:collapse;margin:12px 0;font-size:13px;}
+  .legal th,.legal td{border:1px solid var(--line);padding:9px 11px;text-align:left;vertical-align:top;}
+  .legal th{background:var(--paper);font-weight:600;}
+  .legal .note{background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:14px 16px;font-size:13px;color:var(--muted);margin-top:14px;}
+  .legal a{color:var(--accent);}
+  .legal .tbl-wrap{overflow-x:auto;}
+</style>
+</head>
+<body>
+<script src="shared/components/icons.js"></script>
+
+<nav class="site-nav">
+  <a href="index.html" class="brand">DocFinder</a>
+  <div class="links">
+    <button type="button" class="theme-toggle btn btn-ghost" style="padding:7px 10px;font-size:12px;"><svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg>다크 모드</button>
+    <a href="pricing.html">요금제</a>
+    <a href="login.html">로그인</a>
+  </div>
+</nav>
+
+<div class="wrap legal">
+  <div class="head">
+    <div class="kicker">개인정보</div>
+    <h1>개인정보처리방침</h1>
+    <p class="sub">citidel(이하 "회사")은 이용자의 개인정보를 소중히 여기며, 관련 법령을 준수합니다.</p>
+    <div class="updated">시행일 2026-07-11</div>
+  </div>
+
+  <article>
+    <h2>1. 수집하는 개인정보 항목 및 이용 목적</h2>
+    <div class="tbl-wrap">
+    <table>
+      <tr><th>구분</th><th>항목</th><th>이용 목적</th></tr>
+      <tr><td>회원 로그인</td><td>이메일, 이름(구글 로그인 시 프로필)</td><td>본인 식별, 서비스 제공, 문의 응대</td></tr>
+      <tr><td>유료 결제</td><td>요금제·결제 상태, 결제대행사 발급 식별값(빌링키·결제키)</td><td>구독 관리, 결제·환불 처리</td></tr>
+      <tr><td>자동화(선택)</td><td>구글 드라이브 접근 토큰, 리포트 수신 이메일, 출근 시각·정리 항목</td><td>이용자가 설정한 아침 리포트 자동 생성·발송</td></tr>
+      <tr><td>자동 생성</td><td>서비스 이용 기록, 크레딧 사용량</td><td>사용량 표시, 서비스 개선</td></tr>
+    </table>
+    </div>
+    <p>회사는 위 항목 외에 <strong>이용자가 업로드하거나 드라이브에서 불러온 문서의 본문</strong>을 서버에 수집·저장하지 않습니다. 문서 본문은 이용자의 브라우저 안에서 처리됩니다.</p>
+
+    <h2>2. 개인정보의 처리 및 보관 기간</h2>
+    <ol>
+      <li>회사는 원칙적으로 이용 목적이 달성되면 지체 없이 파기합니다.</li>
+      <li>회원 정보는 회원 탈퇴 시까지 보관하며, 탈퇴 시 파기합니다.</li>
+      <li>결제·거래에 관한 기록은 「전자상거래 등에서의 소비자보호에 관한 법률」 등 관련 법령이 정한 기간 동안 보관합니다(예: 계약·청약철회 기록 5년, 대금결제 기록 5년, 소비자 불만·분쟁처리 기록 3년).</li>
+    </ol>
+
+    <h2>3. 개인정보의 제3자 제공 및 처리위탁</h2>
+    <p>회사는 이용자의 동의 없이 개인정보를 외부에 제공하지 않습니다. 다만 서비스 제공에 필요한 범위에서 아래와 같이 처리를 위탁합니다.</p>
+    <div class="tbl-wrap">
+    <table>
+      <tr><th>수탁자</th><th>위탁 업무</th></tr>
+      <tr><td>토스페이먼츠</td><td>결제·환불 처리 및 결제수단 관리</td></tr>
+      <tr><td>Google LLC</td><td>구글 로그인, 드라이브 연동(이용자가 연결한 경우)</td></tr>
+      <tr><td>Resend</td><td>리포트 이메일 발송</td></tr>
+      <tr><td>Supabase</td><td>구독·자동화 설정 데이터 저장</td></tr>
+      <tr><td>Vercel Inc.</td><td>서비스 호스팅</td></tr>
+    </table>
+    </div>
+    <p>일부 수탁자는 국외에 소재할 수 있으며, 이 경우 관련 법령에 따라 안전하게 처리되도록 합니다.</p>
+
+    <h2>4. 이용자의 권리와 행사 방법</h2>
+    <ol>
+      <li>이용자는 언제든지 자신의 개인정보를 조회·수정하거나 처리정지·삭제(회원 탈퇴)를 요청할 수 있습니다.</li>
+      <li>구글 드라이브 접근 권한은 이용자의 <a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener">구글 계정 설정</a>에서 언제든지 철회할 수 있습니다.</li>
+      <li>권리 행사는 아래 개인정보 보호책임자에게 요청할 수 있으며, 회사는 지체 없이 조치합니다.</li>
+    </ol>
+
+    <h2>5. 개인정보의 안전성 확보 조치</h2>
+    <ul>
+      <li>문서 본문의 브라우저 내 처리(서버 미저장) 원칙</li>
+      <li>결제수단 정보의 비보관(결제대행사 처리)</li>
+      <li>접근 권한 관리 및 전송 구간 암호화(HTTPS)</li>
+    </ul>
+
+    <h2>6. 개인정보 보호책임자</h2>
+    <p>개인정보 처리에 관한 문의·불만·피해구제는 아래로 접수할 수 있습니다.</p>
+    <ul>
+      <li>책임자: 윤태훈 (citidel)</li>
+      <li>문의: [고객문의 이메일]</li>
+    </ul>
+
+    <h2>7. 방침의 변경</h2>
+    <p>이 방침은 법령·서비스의 변경에 따라 개정될 수 있으며, 변경 시 시행일과 변경 내용을 서비스 내에 공지합니다.</p>
+
+    <div class="note">본 방침은 개인 포트폴리오로 제작된 서비스에 적용되는 것으로, 실제 상업 운영 시에는 처리 실태에 맞게 법률 검토를 거쳐 보완하시기를 권장합니다.</div>
+  </article>
+</div>
+
+<div id="legalFooter"></div>
+<script src="shared/components/legal-footer.js"></script>
+</body>
+</html>
