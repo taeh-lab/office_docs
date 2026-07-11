@@ -83,6 +83,7 @@
 <script src="shared/config.js"></script>
 <script src="shared/auth.js"></script>
 <script src="shared/components/command-palette.js"></script>
+<script src="https://js.tosspayments.com/v1/payment"></script>
 <script>
   const u = getUser();
   if (u) {
@@ -121,6 +122,21 @@
     plansEl.appendChild(card);
   });
 
+  // 토스 콜백에서 되돌아온 경우 결과 안내
+  const billingResult = new URLSearchParams(location.search).get('billing');
+  if (billingResult) {
+    const msg = {
+      fail:          '카드 등록이 취소되었어요.',
+      notconfigured: '토스 시크릿 키가 아직 설정되지 않았어요 (SETUP-TODO.md 참고).',
+      issuefail:     '카드 등록에 실패했어요. 카드 정보를 확인해 주세요.',
+      chargefail:    '첫 결제 승인에 실패했어요. 카드 한도·정보를 확인해 주세요.',
+      badplan:       '알 수 없는 플랜이에요.',
+      bad:           '결제 정보가 부족해요. 다시 시도해 주세요.',
+      error:         '결제 처리 중 오류가 났어요. 잠시 후 다시 시도해 주세요.',
+    }[billingResult];
+    if (msg) setTimeout(()=>alert(msg), 120);
+  }
+
   plansEl.addEventListener('click', async (e)=>{
     const btn = e.target.closest('button[data-plan]');
     if(!btn) return;
@@ -134,28 +150,35 @@
     const user = getUser();
     if(!user){ location.href = `login.html?next=pricing.html`; return; }
 
-    btn.disabled = true;
-    btn.textContent = '연결 중…';
-
-    try{
-      const resp = await fetch('/api/create-checkout-session', {
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ email: user.email, plan })
-      });
-      if(resp.ok){
-        const data = await resp.json();
-        if(data.url){ location.href = data.url; return; }
+    // ── 실제 토스 정기결제(빌링) ──────────────────────────────
+    // 카드 등록창 → 성공 시 /api/toss-billing-success 로 리다이렉트(빌링키 발급+첫 결제).
+    if (TOSS_CLIENT_KEY && typeof TossPayments !== 'undefined') {
+      const orig = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = '결제창 여는 중…';
+      try{
+        const tossPayments = TossPayments(TOSS_CLIENT_KEY);
+        const customerKey = 'cust_' + user.email.replace(/[^a-zA-Z0-9]/g, '_');
+        await tossPayments.requestBillingAuth('카드', {
+          customerKey,
+          successUrl: location.origin + '/api/toss-billing-success?plan=' + plan + '&email=' + encodeURIComponent(user.email),
+          failUrl:    location.origin + '/pricing.html?billing=fail',
+        });
+        return; // 카드 등록창으로 이동 — 아래로 안 내려감
+      }catch(err){
+        btn.disabled = false;
+        btn.textContent = orig;
+        if (err && err.code === 'USER_CANCEL') return; // 사용자가 창 닫음 — 조용히
+        console.error('toss billing error:', err);
+        alert('결제창을 여는 중 문제가 발생했어요. 잠시 후 다시 시도해 주세요.');
+        return;
       }
-      // resp가 실패(Stripe 미설정 등)면 아래 폴백으로 넘어감
-    }catch(err){
-      // 네트워크 오류 → 폴백
     }
 
-    // 폴백: 해당 플랜의 Stripe Price ID가 설정 안 됐을 때 — 로컬에서 바로 처리하는 데모 업그레이드
+    // ── 폴백: 토스 키 미설정 — 데모 업그레이드(로컬 반영) ──────
     user.plan = plan;
     setUser(user);
-    alert(`Stripe 테스트 키/Price ID가 설정되지 않아 데모 업그레이드로 처리했어요.\nSETUP-TODO.md의 STRIPE_PRICE_${plan.toUpperCase()}를 설정하면 실제 Stripe Checkout으로 연결됩니다.`);
+    alert('토스 클라이언트 키가 설정되지 않아 데모 업그레이드로 처리했어요.\nSETUP-TODO.md의 TOSS_CLIENT_KEY / TOSS_SECRET_KEY를 설정하면 실제 토스 결제로 연결됩니다.');
     location.href = `dashboard.html?upgraded=${plan}`;
   });
 </script>

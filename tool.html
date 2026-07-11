@@ -1617,12 +1617,38 @@ function highlight(text, terms){
     document.getElementById('downgradeRow').style.display = (user.plan==='free') ? 'none' : 'flex';
   }
   const downgradeBtn = document.getElementById('downgradeBtn');
-  if(downgradeBtn) downgradeBtn.addEventListener('click', ()=>{
-    if(!confirm('구독을 해지하고 Free 플랜으로 전환할까요?')) return;
-    user.plan = 'free'; setUser(user);
-    refreshSettings(); updateCreditDisplay();
-    const amUp = document.getElementById('amUpgrade'); if(amUp) amUp.style.display='';
-    if(window.Toast) Toast.show('Free 플랜으로 전환됐어요.');
+  if(downgradeBtn) downgradeBtn.addEventListener('click', async ()=>{
+    if(!confirm('구독을 해지할까요?\n\n· 결제 10일 이내 & 이번 결제분 크레딧 500 미만 사용 → 전액 환불\n· 그 외 → 환불 없이 다음 결제부터 청구 중단')) return;
+    const orig = downgradeBtn.textContent;
+    downgradeBtn.disabled = true; downgradeBtn.textContent = '처리 중…';
+    const creditsUsed = (typeof getUsage==='function') ? getUsage(user.email) : 0;
+    const toFree = ()=>{ user.plan='free'; setUser(user); refreshSettings(); updateCreditDisplay();
+      const amUp=document.getElementById('amUpgrade'); if(amUp) amUp.style.display=''; };
+    try{
+      const r = await fetch('/api/toss-cancel', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ email: user.email, creditsUsed })
+      });
+      if(r.status === 503){ // 결제 서버 미설정 — 데모 다운그레이드
+        toFree();
+        if(window.Toast) Toast.show('Free 플랜으로 전환됐어요. (결제 서버 미설정 — 데모)');
+        return;
+      }
+      const d = await r.json().catch(()=>({}));
+      if(!r.ok){
+        downgradeBtn.disabled=false; downgradeBtn.textContent=orig;
+        if(window.Toast) Toast.show(d.error==='no_active_subscription' ? '활성 구독을 찾지 못했어요.' : '해지에 실패했어요.', {variant:'error'});
+        return;
+      }
+      toFree();
+      if(window.Toast) Toast.show(
+        d.refunded ? '구독 해지 + 전액 환불 완료됐어요.'
+                   : '구독을 해지했어요. 다음 결제부터 청구되지 않습니다. (환불 조건 미충족)',
+        {variant:'success'});
+    }catch(err){
+      downgradeBtn.disabled=false; downgradeBtn.textContent=orig;
+      if(window.Toast) Toast.show('해지 처리 중 오류가 났어요.', {variant:'error'});
+    }
   });
 
   // 결제 후 ?upgraded= 반영 + 로그인 flash 토스트

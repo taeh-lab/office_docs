@@ -15,5 +15,6 @@ export default function handler(req, res) {
   res.setHeader('Cache-Control', 'public, max-age=300, s-maxage=300');
   res.status(200).json({
     googleApiKey: process.env.GOOGLE_API_KEY || '',
+    tossClientKey: process.env.TOSS_CLIENT_KEY || '',   // 토스 클라이언트 키(공개값)
   });
 }

@@ -33,25 +33,30 @@ const CREDIT_MODEL = {
 // 통화는 ₩(원)으로 통일(제품이 한국어). 표시값일 뿐이라 Stripe 실제 청구액과는 무관하며,
 // 실제 결제 금액은 각 Price ID에 설정된 값을 따른다(테스트 모드면 청구 안 됨).
 const PLANS = {
-  free:   { label:'Free',   priceLabel:'₩0 / 월',       rank:0, credits:100 },
-  basic:  { label:'Basic',  priceLabel:'₩9,900 / 월',   rank:1, credits:2000 },
-  middle: { label:'Middle', priceLabel:'₩19,900 / 월',  rank:2, credits:6000 },
-  high:   { label:'High',   priceLabel:'₩39,900 / 월',  rank:3, credits:20000 },
+  free:   { label:'Free',   priceLabel:'₩0 / 월',       rank:0, credits:100,   amount:0 },
+  basic:  { label:'Basic',  priceLabel:'₩9,900 / 월',   rank:1, credits:2000,  amount:9900 },
+  middle: { label:'Middle', priceLabel:'₩19,900 / 월',  rank:2, credits:6000,  amount:19900 },
+  high:   { label:'High',   priceLabel:'₩39,900 / 월',  rank:3, credits:20000, amount:39900 },
 };
+
+// 토스페이먼츠 클라이언트 키(공개값·test_ck_.../live_ck_...). GOOGLE_API_KEY처럼 리포에 커밋 안 하고
+// /api/public-config에서 런타임 로드. 비면 결제는 데모 업그레이드로 폴백.
+var TOSS_CLIENT_KEY = (typeof window !== 'undefined' && window.__TOSS_CLIENT_KEY) || '';
 
 // 배포 환경에선 리포에 없는 GOOGLE_API_KEY를 서버(/api/public-config)에서 받아 채운다.
 // 로컬 오버라이드(window.__GOOGLE_API_KEY)가 있으면 스킵. 로드되면 dwf-config-ready 이벤트를 쏴서
 // 드라이브 버튼 상태를 갱신하게 한다.
 (function(){
-  if (typeof window === 'undefined' || GOOGLE_API_KEY) return;
+  if (typeof window === 'undefined') return;
+  if (GOOGLE_API_KEY && TOSS_CLIENT_KEY) return;
   try {
     fetch('/api/public-config')
       .then(function(r){ return r.ok ? r.json() : null; })
       .then(function(d){
-        if (d && d.googleApiKey) {
-          GOOGLE_API_KEY = d.googleApiKey;
-          document.dispatchEvent(new Event('dwf-config-ready'));
-        }
+        if (!d) return;
+        if (d.googleApiKey && !GOOGLE_API_KEY) GOOGLE_API_KEY = d.googleApiKey;
+        if (d.tossClientKey && !TOSS_CLIENT_KEY) TOSS_CLIENT_KEY = d.tossClientKey;
+        document.dispatchEvent(new Event('dwf-config-ready'));
       })
       .catch(function(){});
   } catch(e){}
