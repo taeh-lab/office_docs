@@ -1655,10 +1655,12 @@ function highlight(text, terms){
   if(user){
     const qs = new URLSearchParams(location.search);
     const up = qs.get('upgraded');
-    if(up && PLANS[up] && user.plan!==up){
-      user.plan = up; setUser(user); history.replaceState({}, '', location.pathname);
-      updateCreditDisplay();
-      if(window.Toast) Toast.show(`${PLANS[up].label} 플랜으로 업그레이드됐어요!`, {variant:'success'});
+    if(up && PLANS[up]){
+      // 결제 리다이렉트(?upgraded=)면 플랜 변화 여부와 무관하게 항상 완료를 확인시킨다.
+      if(user.plan!==up){ user.plan = up; setUser(user); updateCreditDisplay(); }
+      history.replaceState({}, '', location.pathname);
+      const credits = (PLANS[up].credits||0).toLocaleString('ko-KR');
+      if(window.Toast) Toast.show(`${PLANS[up].label} 플랜 결제 완료 — 월 ${credits} 크레딧이 충전됐어요.`, {variant:'success', duration:6000});
     }
     const flash = sessionStorage.getItem('dwf_flash');
     if(flash){ sessionStorage.removeItem('dwf_flash'); try{ const {msg,variant}=JSON.parse(flash); if(window.Toast) Toast.show(msg,{variant}); }catch(e){} }
