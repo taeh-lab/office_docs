@@ -1,0 +1,21 @@
+{
+  "id": "/",
+  "name": "DocFinder — AI 문서 검색",
+  "short_name": "DocFinder",
+  "description": "여러 문서를 한 번에 훑어, 지정한 단어가 어느 문서 몇 번째 줄에 있는지 찾아 엑셀로 뽑아주는 AI 문서 검색 도구.",
+  "lang": "ko",
+  "dir": "ltr",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "theme_color": "#2f5d50",
+  "background_color": "#faf9f6",
+  "categories": ["productivity", "business", "utilities"],
+  "icons": [
+    { "src": "/shared/assets/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/shared/assets/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/shared/assets/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "/shared/assets/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

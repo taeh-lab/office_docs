@@ -5,6 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>문서 단어 찾기 · 여러 문서를 한 번에</title>
 <link rel="icon" type="image/svg+xml" href="shared/assets/favicon.svg">
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#2f5d50">
+<link rel="apple-touch-icon" href="shared/assets/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="DocFinder">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="mobile-web-app-capable" content="yes">
+<script src="shared/components/pwa.js" defer></script>
 
 <!-- 오픈소스 라이브러리: PDF 읽기 / 워드 읽기 / 엑셀 읽기·쓰기 -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -26,6 +34,7 @@
 <script src="shared/components/usage-chart.js"></script>
 <script src="shared/components/toast.js"></script>
 <script src="shared/components/command-palette.js"></script>
+<script src="shared/components/mobile-nav.js" defer></script>
 
 <style>
   :root{
@@ -157,6 +166,66 @@
   .mode-view{display:none;}
   .mode-view.on{display:block;animation:fade .18s ease;}
   @keyframes fade{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:none;}}
+
+  /* ── 화면 전환 모션: View Transitions API (라이브러리 없음) ──
+     .main만 이름을 붙여 콘텐츠만 슬라이드-업, 상단바·하단탭은 제자리 유지. */
+  @media (prefers-reduced-motion: no-preference){
+    .main{ view-transition-name: appmain; }
+  }
+  ::view-transition-old(appmain){ animation: vtOld .18s ease both; }
+  ::view-transition-new(appmain){ animation: vtNew .26s cubic-bezier(.32,.72,0,1) both; }
+  @keyframes vtOld{ to{ opacity:0; transform: translateY(6px); } }
+  @keyframes vtNew{ from{ opacity:0; transform: translateY(12px); } }
+  /* 루트(전체 페이지)는 애니메이션 끔 — .main만 움직이게 */
+  ::view-transition-old(root), ::view-transition-new(root){ animation: none; }
+
+  /* ── 눌림 피드백(마이크로 인터랙션) — 100ms 이내 반응 ── */
+  @media (hover:none){
+    .btn:active, .home-card:active, .bnav-item:active, .fab:active,
+    .add:active, .mode-btn:active, .period:active, .chip:active{
+      transform: scale(.97); transition: transform .05s;
+    }
+  }
+
+  /* ── 앱 홈 (모바일 전용 화면) ── */
+  .home-hero{padding:6px 0 20px;}
+  .home-hi{margin:0 0 6px;font-size:14px;font-weight:600;color:var(--accent);}
+  .home-title{margin:0;font-size:26px;line-height:1.28;font-weight:800;letter-spacing:-.02em;}
+  .home-credit{display:inline-flex;align-items:center;gap:6px;margin-top:14px;background:var(--accent-soft);
+    border:1px solid #cfe0d6;border-radius:20px;padding:6px 13px;font-size:12.5px;font-weight:700;color:var(--accent);}
+  .home-credit[hidden]{display:none;}
+  .home-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:26px;}
+  .home-card{display:flex;flex-direction:column;align-items:flex-start;gap:10px;text-align:left;
+    background:var(--white);border:1px solid var(--line);border-radius:16px;padding:16px;cursor:pointer;
+    font-family:var(--sans);color:var(--ink);box-shadow:0 1px 2px rgba(30,25,15,.04);transition:border-color .12s, box-shadow .12s;}
+  .home-card:hover{border-color:var(--accent);box-shadow:0 8px 24px -14px rgba(30,25,15,.3);}
+  .home-card.feat{grid-column:1/-1;flex-direction:row;align-items:center;gap:14px;
+    background:var(--accent);border-color:var(--accent);color:#fff;}
+  .home-card .hc-ic{width:42px;height:42px;border-radius:12px;background:var(--accent-soft);
+    display:grid;place-items:center;flex:none;}
+  .home-card .hc-ic .icon{width:20px;height:20px;color:var(--accent);}
+  .home-card.feat .hc-ic{background:rgba(255,255,255,.18);}
+  .home-card.feat .hc-ic .icon{color:#fff;}
+  .home-card .hc-txt{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1;}
+  .home-card .hc-t{font-size:15px;font-weight:700;}
+  .home-card .hc-s{font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;}
+  .home-card.feat .hc-s{color:rgba(255,255,255,.82);}
+  .home-card .hc-go{width:20px;height:20px;color:#fff;flex:none;opacity:.9;}
+  .home-sec-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
+  .home-sec-head h2{margin:0;font-size:16px;font-weight:800;letter-spacing:-.01em;}
+  .home-doc-n{font-size:12px;font-weight:700;color:var(--accent);background:var(--accent-soft);border-radius:20px;padding:2px 10px;}
+  .home-doc{display:flex;align-items:center;gap:11px;padding:13px;background:var(--white);
+    border:1px solid var(--line);border-radius:12px;margin-bottom:8px;}
+  .home-doc .ext{font-family:var(--mono);font-size:9px;font-weight:700;padding:3px 6px;border-radius:5px;
+    background:var(--accent-soft);color:var(--accent);text-transform:uppercase;flex:none;}
+  .home-doc .nm{flex:1;font-size:13.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .home-doc .st{font-size:11px;color:var(--muted);flex:none;}
+  .home-doc .st.ok{color:var(--accent);}
+  /* 빈 상태 (앱다운 큰 빈 화면 채우기) */
+  .home-empty{text-align:center;padding:34px 20px;background:var(--white);border:1px dashed var(--line-strong);border-radius:16px;}
+  .home-empty .ei{width:52px;height:52px;border-radius:15px;background:var(--accent-soft);display:inline-grid;place-items:center;margin-bottom:14px;}
+  .home-empty .ei .icon{width:26px;height:26px;color:var(--accent);}
+  .home-empty p{margin:0 0 16px;font-size:14px;color:var(--muted);line-height:1.6;}
 
   /* 프롬프트/입력 바 */
   .prompt{display:flex;gap:10px;align-items:center;background:var(--white);border:1px solid var(--line-strong);border-radius:14px;padding:8px 8px 8px 16px;box-shadow:var(--shadow);}
@@ -323,11 +392,93 @@
   .rail-foot code{font-family:var(--mono);font-size:10px;}
 
   @media(max-width:600px){ td.ctx{min-width:180px;} }
+
+  /* ── 모바일/설치앱: 하단 탭 내비 + 문서 바텀시트 ──
+     데스크톱은 영향 없음(기본 숨김). 모드 스위처(.mode-btn)·문서 레일(.rail)을 그대로 재사용,
+     표현만 네이티브 앱처럼 바꾼다. (Material3 navigation bar / iOS HIG tab bar 규격 참고) */
+  .bottom-nav{display:none;}
+  .sheet-scrim{display:none;}
+  .fab{display:none;}
   @media(max-width:860px){
+    /* 상단바: 모드 스위처를 하단 탭으로 내리고 앱바처럼 정리 + 노치 안전영역 */
+    .app{grid-template-rows:auto 1fr;}
+    .topbar{gap:10px;padding:0 14px;min-height:52px;padding-top:env(safe-area-inset-top);}
+    .modes{display:none;}
+    .brand{font-size:15px;}
     .body{grid-template-columns:1fr;}
-    .rail{display:none;}
-    .modes{margin:0 auto;}
-    .main{padding:20px 16px 40px;}
+    /* 본문: 하단 탭바 높이만큼 아래 여백 */
+    .main{padding:18px 16px calc(78px + env(safe-area-inset-bottom));}
+
+    /* 문서 레일 → 아래에서 올라오는 바텀시트 */
+    .rail{
+      display:flex;position:fixed;left:0;right:0;bottom:0;z-index:70;
+      max-height:78vh;border-right:none;border-top:1px solid var(--line);
+      border-radius:18px 18px 0 0;box-shadow:0 -14px 40px -14px rgba(0,0,0,.35);
+      transform:translateY(110%);transition:transform .26s cubic-bezier(.4,0,.2,1);
+      padding-bottom:calc(8px + env(safe-area-inset-bottom));
+    }
+    .rail::before{content:"";position:absolute;top:8px;left:50%;transform:translateX(-50%);
+      width:38px;height:4px;border-radius:3px;background:var(--line-strong);}
+    .rail-head{padding-top:20px;}
+    .app.sheet-open .rail{transform:none;}
+    .sheet-scrim{display:block;position:fixed;inset:0;background:rgba(20,17,10,.45);
+      z-index:65;opacity:0;pointer-events:none;transition:opacity .2s;}
+    .app.sheet-open .sheet-scrim{opacity:1;pointer-events:auto;}
+    /* 자동수집 팝오버: 모바일에선 화면 폭에 맞춰 */
+    .collect-row{left:12px;right:12px;width:auto;top:auto;bottom:calc(92px + env(safe-area-inset-bottom));}
+
+    /* 하단 탭 내비 (mobile-nav.js가 주입) */
+    .bottom-nav{
+      display:flex;position:fixed;left:0;right:0;bottom:0;z-index:75;
+      background:var(--white);border-top:1px solid var(--line);
+      padding-bottom:env(safe-area-inset-bottom);
+      box-shadow:0 -2px 14px -8px rgba(0,0,0,.25);
+    }
+    .bnav-item{
+      flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+      border:none;background:none;cursor:pointer;font-family:var(--sans);
+      font-size:11px;font-weight:600;color:var(--muted);padding:7px 0 5px;min-height:56px;
+      position:relative;transition:color .12s;
+    }
+    .bnav-item .icon{width:22px;height:22px;stroke-width:2;}
+    .bnav-item.active{color:var(--accent);}
+    .bnav-badge{position:absolute;top:5px;left:calc(50% + 7px);min-width:16px;height:16px;
+      padding:0 4px;border-radius:9px;background:var(--accent);color:#fff;font-size:10px;
+      font-weight:700;display:none;align-items:center;justify-content:center;line-height:1;}
+    .bnav-badge.show{display:flex;}
+
+    /* 문서 올리기 FAB (Material 시그니처) */
+    .fab{
+      display:flex;align-items:center;justify-content:center;
+      position:fixed;right:16px;z-index:76;
+      bottom:calc(72px + env(safe-area-inset-bottom));
+      width:56px;height:56px;border-radius:18px;border:none;cursor:pointer;
+      background:var(--accent);color:#fff;
+      box-shadow:0 10px 24px -6px rgba(47,93,80,.55);
+      transition:transform .22s cubic-bezier(.4,0,.2,1), opacity .18s;
+    }
+    .fab .icon{width:26px;height:26px;stroke-width:2.2;}
+    .app.sheet-open .fab{transform:translateY(180%);opacity:0;pointer-events:none;}
+
+    /* 검색 옵션 줄: 모바일에선 세로로, 안내문은 아래 한 줄로 */
+    .opts{flex-direction:column;align-items:flex-start;gap:12px;}
+    .opts .count{margin-left:0 !important;}
+
+    /* 검색 결과 표 → 카드 리스트(가로 스크롤 대신 세로 카드) */
+    #results table, #results thead, #results tbody, #results tr, #results td{display:block;}
+    #results table{border:none;background:none;}
+    #results thead{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);}
+    #results tr{background:var(--white);border:1px solid var(--line);border-radius:12px;
+      padding:12px 14px;margin-bottom:10px;}
+    #results tbody tr:hover{background:var(--white);}
+    #results td{border:none;padding:3px 0;white-space:normal;}
+    #results td.file{font-size:14px;}
+    #results td.loc{font-size:12px;margin-bottom:2px;}
+    #results td.ctx{min-width:0;color:var(--muted);font-size:13px;}
+    #results td.word{margin:2px 0;}
+
+    /* 정리 리포트 요약 카드: 폭에 맞춰 꽉 차게 */
+    .digest-cat{flex:1 1 46%;}
   }
 
   /* 대시보드 iframe 임베드(embed=1): 브랜드·아바타는 대시보드가 제공하므로 숨김 */
@@ -401,6 +552,36 @@
 
     <!-- 우: 작업 화면 (모드별 교체) -->
     <main class="main">
+
+      <!-- 홈 (모바일/설치앱 전용 — 데스크톱 스위처엔 없어 활성화되지 않음) -->
+      <section class="mode-view" id="view-home">
+        <div class="home-hero">
+          <p class="home-hi" id="homeHi">반가워요</p>
+          <h1 class="home-title">문서에서 답을<br>바로 찾아드릴게요</h1>
+          <span class="home-credit" id="homeCredit" hidden></span>
+        </div>
+
+        <div class="home-actions">
+          <button type="button" class="home-card feat" data-go="search">
+            <span class="hc-ic"><svg class="icon" aria-hidden="true"><use href="#i-search"></use></svg></span>
+            <span class="hc-txt"><span class="hc-t">검색</span><span class="hc-s">단어가 어느 문서 몇 번째 줄인지 짚어줘요</span></span>
+            <svg class="icon hc-go" aria-hidden="true"><use href="#i-arrow-right"></use></svg>
+          </button>
+          <button type="button" class="home-card" data-go="digest">
+            <span class="hc-ic"><svg class="icon" aria-hidden="true"><use href="#i-list-checks"></use></svg></span>
+            <span class="hc-txt"><span class="hc-t">정리 리포트</span><span class="hc-s">항목별로 엑셀</span></span>
+          </button>
+          <button type="button" class="home-card" data-go="morning">
+            <span class="hc-ic"><svg class="icon" aria-hidden="true"><use href="#i-calendar-clock"></use></svg></span>
+            <span class="hc-txt"><span class="hc-t">아침 리포트</span><span class="hc-s">어제 바뀐 문서 자동</span></span>
+          </button>
+        </div>
+
+        <div class="home-docs">
+          <div class="home-sec-head"><h2>내 문서</h2><span class="home-doc-n" id="homeDocN">0개</span></div>
+          <div id="homeDocList"></div>
+        </div>
+      </section>
 
       <!-- 검색 -->
       <section class="mode-view on" id="view-search">
@@ -975,7 +1156,53 @@ function renderFiles(){
     });
     fileList.appendChild(div);
   });
+  renderHome();   // 홈 화면의 "내 문서"도 같이 동기화
 }
+
+/* ================= 앱 홈 화면 렌더 (모바일 전용 뷰) ================= */
+function renderHome(){
+  const list = document.getElementById('homeDocList');
+  const dn = document.getElementById('homeDocN');
+  const hi = document.getElementById('homeHi');
+  const hc = document.getElementById('homeCredit');
+  if(hi){
+    const u = (typeof getUser==='function') ? getUser() : null;
+    hi.textContent = u ? `안녕하세요, ${u.name || (u.email||'').split('@')[0]}님` : '반가워요';
+  }
+  if(hc){
+    const ci = document.getElementById('creditInfo');
+    if(ci && ci.textContent.trim() && ci.style.display!=='none'){ hc.textContent = ci.textContent.trim(); hc.hidden = false; }
+    else hc.hidden = true;
+  }
+  if(dn) dn.textContent = `${files.length}개`;
+  if(!list) return;
+  if(!files.length){
+    list.innerHTML = `<div class="home-empty">
+      <span class="ei"><svg class="icon" aria-hidden="true"><use href="#i-file-text"></use></svg></span>
+      <p>아직 올린 문서가 없어요.<br>문서를 올리면 여기서 바로 검색·정리할 수 있어요.</p>
+      <button type="button" class="btn btn-primary" data-act="opendocs">
+        <svg class="icon" aria-hidden="true"><use href="#i-upload"></use></svg>문서 올리기</button>
+    </div>`;
+    return;
+  }
+  list.innerHTML = files.map(f=>{
+    const st = f.status==='완료' ? 'ok' : '';
+    return `<div class="home-doc"><span class="ext">${f.ext}</span>` +
+      `<span class="nm">${escapeHtml(f.name)}</span>` +
+      `<span class="st ${st}">${escapeHtml(f.status)}</span></div>`;
+  }).join('');
+}
+
+/* 홈 인터랙션 (한 번만 바인딩): 액션 카드 → 모드 전환, 빈 상태 버튼 → 문서 시트 열기 */
+(function(){
+  const home = document.getElementById('view-home');
+  if(!home) return;
+  home.addEventListener('click', (e)=>{
+    const card = e.target.closest('.home-card[data-go]');
+    if(card && window.DF){ window.DF.setMode(card.dataset.go); return; }
+    if(e.target.closest('[data-act="opendocs"]')){ document.dispatchEvent(new CustomEvent('df:opendocs')); }
+  });
+})();
 
 /* ================= 파일 파싱 ================= */
 async function parseFile(rec){
@@ -1505,17 +1732,32 @@ function highlight(text, terms){
   return safe;
 }
 
-/* ================= 모드 스위처 (검색 · 정리 · 아침 리포트) ================= */
+/* ================= 모드 스위처 (홈 · 검색 · 정리 · 아침 리포트) =================
+   setMode(mode)를 window.DF로 노출 — 하단 탭(모바일)과 데스크톱 스위처가 공유.
+   전환은 View Transitions API로 감싸 네이티브 앱 같은 슬라이드(미지원 브라우저는 즉시 전환). */
+window.DF = window.DF || {};
 (function(){
   const btns = [...document.querySelectorAll('.mode-btn')];
-  const views = { search:'view-search', digest:'digestCard', morning:'morningCard' };
-  btns.forEach(b=>b.addEventListener('click', ()=>{
-    btns.forEach(x=>x.classList.remove('on'));
-    b.classList.add('on');
-    Object.values(views).forEach(id=>{ const el=document.getElementById(id); if(el) el.classList.remove('on'); });
-    const el = document.getElementById(views[b.dataset.mode]); if(el) el.classList.add('on');
+  const views = { home:'view-home', search:'view-search', digest:'digestCard', morning:'morningCard' };
+  let current = 'search';
+  function apply(mode){
+    btns.forEach(x=>x.classList.toggle('on', x.dataset.mode===mode));
+    Object.entries(views).forEach(([m,id])=>{ const el=document.getElementById(id); if(el) el.classList.toggle('on', m===mode); });
     const main = document.querySelector('.main'); if(main) main.scrollTop = 0;
-  }));
+    if(mode==='home' && typeof renderHome==='function') renderHome();
+  }
+  function setMode(mode, opts){
+    if(!views[mode]) mode = 'search';
+    if(mode===current) { if(mode==='home' && typeof renderHome==='function') renderHome(); return; }
+    current = mode;
+    const run = ()=>apply(mode);
+    if(!(opts&&opts.instant) && document.startViewTransition){ document.startViewTransition(run); }
+    else { run(); }
+    document.dispatchEvent(new CustomEvent('df:modechange', {detail:mode}));
+  }
+  btns.forEach(b=>b.addEventListener('click', ()=>setMode(b.dataset.mode)));
+  window.DF.setMode = setMode;
+  window.DF.getMode = ()=>current;
 })();
 
 /* ===== 자동 발송 연결(oauth-callback) 결과 안내 (?automation=...) ===== */

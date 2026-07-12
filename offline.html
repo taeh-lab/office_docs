@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>오프라인 · DocFinder</title>
+<link rel="icon" type="image/svg+xml" href="/shared/assets/favicon.svg">
+<meta name="theme-color" content="#2f5d50">
+<style>
+  :root { color-scheme: light dark; }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    display: flex; align-items: center; justify-content: center;
+    font-family: -apple-system, "Segoe UI", Roboto, "Malgun Gothic", sans-serif;
+    background: #faf9f6; color: #1a1a1a;
+    padding: 24px; text-align: center;
+  }
+  @media (prefers-color-scheme: dark) {
+    body { background: #14171a; color: #f0efe9; }
+  }
+  .card { max-width: 420px; }
+  .mark {
+    width: 64px; height: 64px; border-radius: 16px; background: #2f5d50;
+    display: inline-flex; align-items: center; justify-content: center; margin-bottom: 20px;
+  }
+  .mark svg { width: 34px; height: 34px; }
+  h1 { font-size: 20px; margin: 0 0 10px; }
+  p { font-size: 15px; line-height: 1.6; opacity: .8; margin: 0 0 22px; }
+  button {
+    font: inherit; font-weight: 600; color: #fff; background: #2f5d50;
+    border: 0; border-radius: 10px; padding: 11px 22px; cursor: pointer;
+  }
+  button:hover { filter: brightness(1.08); }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="mark">
+      <svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+        <rect x="8.5" y="6.5" width="11" height="14" rx="1.5" fill="#faf9f6"/>
+        <rect x="11" y="10" width="6" height="1.6" rx="0.8" fill="#2f5d50"/>
+        <rect x="11" y="13" width="6" height="1.6" rx="0.8" fill="#2f5d50"/>
+        <rect x="11" y="16" width="3.5" height="1.6" rx="0.8" fill="#2f5d50"/>
+        <circle cx="20.5" cy="20.5" r="4" fill="none" stroke="#faf9f6" stroke-width="2.2"/>
+        <line x1="23.4" y1="23.4" x2="26.2" y2="26.2" stroke="#faf9f6" stroke-width="2.2" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <h1>오프라인 상태예요</h1>
+    <p>인터넷 연결이 끊겨 이 화면을 불러올 수 없어요. 연결을 확인하고 다시 시도해 주세요. 이미 열어둔 문서 작업은 대부분 브라우저 안에서 계속 동작합니다.</p>
+    <button onclick="location.reload()">다시 시도</button>
+  </div>
+</body>
+</html>

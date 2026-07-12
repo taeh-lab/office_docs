@@ -8,3 +8,8 @@ shared/config.local.js
 
 # 사업자·계좌 등 개인정보 담긴 로컬 계획 문서 (커밋 금지)
 PAYMENTS-PLAN.md
+
+# 개인 진로·전략·심리 기록 + 임시 스크린샷 (공개 리포 커밋 금지)
+DECISIONS.md
+DISTRIBUTION-PLAN.md
+_mobile-preview/
