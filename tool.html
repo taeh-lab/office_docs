@@ -27,6 +27,9 @@
      아래 사용량 제한 로직이 그냥 스킵되고 기존처럼 무제한으로 동작한다. -->
 <script src="shared/config.js"></script>
 <script src="shared/auth.js"></script>
+<!-- 크레딧 코어. 위 둘에 의존하지 않는다(그게 "아무것도 모른다"의 증거) — 순서상 뒤에 있을 뿐.
+     경계는 tools/check-credit.mjs가 기계로 강제한다. -->
+<script src="shared/credit.js"></script>
 <!-- 구글 드라이브에서 문서 불러오기 (Picker + drive.file). 설정 안 돼 있으면 버튼이 '설정 필요'로 비활성. -->
 <script src="shared/components/drive-picker.js"></script>
 <!-- 대시보드에 embed된 상태(또는 단독 실행)에서 대시보드/랜딩과 같은 다크모드 설정을
