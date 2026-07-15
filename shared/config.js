@@ -26,12 +26,22 @@ const CREDIT_MODEL = {
   ocrPageSurcharge: 3,          // OCR(스캔 이미지→글자)한 페이지당 가산 — 실제 연산이 무거움
 };
 
-// 요금제 4단계 — 크레딧 번들. key는 서버(api/create-checkout-session.js)의 화이트리스트,
-// dashboard.html의 플랜 배지, pricing.html의 카드가 전부 이 값을 그대로 씀.
-// credits = 매달 지급되는 크레딧(null이면 무제한). 기능 차등이 아니라 크레딧 양으로만 구분.
-// priceLabel은 pricing.html 카드의 표시용 문자열 — '{금액} / 월' 형식.
-// 통화는 ₩(원)으로 통일(제품이 한국어). 표시값일 뿐이라 Stripe 실제 청구액과는 무관하며,
-// 실제 결제 금액은 각 Price ID에 설정된 값을 따른다(테스트 모드면 청구 안 됨).
+// 요금제 4단계 — 크레딧 번들. ★이 표가 금액의 단일 진실이다.
+//
+// ★ 금액이 사는 곳은 3자다. 갈라지면 tools/check-credit.mjs가 exit 1 한다(amount-drift):
+//     priceLabel  '₩9,900 / 월'  ← pricing.html:133이 읽는 값 = 사용자가 보는 숫자
+//     amount      9900           ← 필드. (현재 이걸 읽는 코드는 0곳이지만 대조의 다리다)
+//     PLAN_AMOUNTS in api/toss-billing-success.js:13  ← 실제 청구액
+//   서버는 shared/를 import 못 한다(shared엔 export 0, api/는 ESM, package.json에 type 없음)
+//   → 코드를 공유하는 대신 기계로 대조한다. 값이 아니라 "불일치"를 금지한다.
+//   여기 금액을 고치면 서버 PLAN_AMOUNTS도 같이 고쳐야 하고, 안 고치면 커밋 전에 검사가 잡는다.
+//
+// credits = 매달 지급되는 크레딧. 기능 차등이 아니라 크레딧 양으로만 구분.
+//   ⚠️ 지금 구현(shared/credit-rules.js)은 이걸 "이번 달 상한"으로 쓴다. 의도(지급)와 구현(상한)이
+//      다르다 — 장부 모델 전환 설계는 CREDIT-MODEL.md. 이번 스프린트 범위 밖.
+// 통화는 ₩(원)으로 통일(제품이 한국어).
+// (구 주석은 "표시값일 뿐이라 Stripe 실제 청구액과 무관, Price ID가 진실"이라 했다.
+//  Stripe 시절엔 맞았지만 32dc9f9에서 토스로 전환하며 금액이 서버 코드로 들어왔다 → 거짓이 됐다.)
 const PLANS = {
   free:   { label:'Free',   priceLabel:'₩0 / 월',       rank:0, credits:100,   amount:0 },
   basic:  { label:'Basic',  priceLabel:'₩9,900 / 월',   rank:1, credits:2000,  amount:9900 },

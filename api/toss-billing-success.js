@@ -10,6 +10,11 @@
 // 금액은 서버에서 고정(클라 조작 방지). TOSS_SECRET_KEY 없으면 데모 안내로 폴백.
 // ─────────────────────────────────────────────────────────────
 
+// ★ 이건 shared/config.js의 PLANS[x].amount / priceLabel의 명시된 복제다. 단일 진실은 config.js.
+//   서버는 shared/를 import 못 한다(shared엔 export가 0개 — 클래식 스크립트, 여긴 ESM) →
+//   코드를 공유하는 대신 tools/check-credit.mjs가 기계로 대조한다. 갈라지면 exit 1.
+//   여길 고치면 config.js도 같이 고칠 것. 안 하면 커밋 전에 검사가 잡는다.
+//   (금액을 서버에 두는 것 자체는 옳다 — 클라 조작 방지. 문제는 "복제"이지 "서버 보유"가 아니다.)
 const PLAN_AMOUNTS = { basic: 9900, middle: 19900, high: 39900 };
 
 export default async function handler(req, res) {
