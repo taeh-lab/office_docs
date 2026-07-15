@@ -55,6 +55,11 @@
   @media(max-width:820px){
     .authsplit{grid-template-columns:1fr;min-height:100vh;}
     .authside{display:none;}
+    /* 1fr = minmax(auto,1fr) 이고, 그리드 아이템의 기본 min-width:auto 때문에 트랙이
+       아이템 min-content(425.6px) 아래로 안 내려간다 → 375px에서 문서가 51px 가로로 넘쳤다.
+       min-width:0 을 줘야 실제로 줄어든다(트랙만 minmax(0,1fr)로 바꾸면 아이템이 트랙을 넘침).
+       실측: 문서너비 426→375, 가로스크롤 true→false. signup.html에도 같은 수정 있음(CSS가 두 벌). */
+    .authform-col{min-width:0;}
   }
 </style>
 </head>

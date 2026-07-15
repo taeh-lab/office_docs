@@ -54,6 +54,9 @@
   @media(max-width:820px){
     .authsplit{grid-template-columns:1fr;min-height:100vh;}
     .authside{display:none;}
+    /* login.html과 동일 — 자세한 근거는 그쪽 주석. 1fr=minmax(auto,1fr) + min-width:auto 때문에
+       375px에서 문서가 51px 넘쳤다. 실측: 426→375. (이 CSS는 두 파일에 복제돼 있다.) */
+    .authform-col{min-width:0;}
   }
 </style>
 </head>
