@@ -1552,9 +1552,12 @@ function chargeForNewDocs(){
     bytes += (f.file && f.file.size) || 0;
     ocrPages += new Set((f.text||[]).filter(l=>l.ocr).map(l=>l.page)).size;
   });
-  const per = (typeof CREDIT_MODEL!=='undefined') ? CREDIT_MODEL.bytesPerCredit : 256000;
-  const ocrRate = (typeof CREDIT_MODEL!=='undefined') ? CREDIT_MODEL.ocrPageSurcharge : 3;
-  const cost = Math.max(1, Math.ceil(bytes / per) + ocrPages * ocrRate);
+  // 원가 공식은 shared/credit-rules.js가 소유한다 — CREDIT_MODEL을 아는 곳은 거기 하나뿐.
+  // (여기 있던 256000/3 폴백 상수는 config.js의 복제였다. tool.html은 config.js를 먼저 싣기에
+  //  도달 불가한 죽은 값이었지만, 복제는 언젠가 어긋난다.)
+  // 규칙이 미로드면 아래 chargeCredits의 typeof 가드가 어차피 과금을 통과시킨다 → 원가값이
+  // 무의미하므로 상수를 여기 다시 복제하지 않는다. 1은 "안 죽는다"는 뜻일 뿐이다.
+  const cost = (typeof creditCostForDocs === 'function') ? creditCostForDocs(bytes, ocrPages) : 1;
   if(!chargeCredits(cost, '문서 처리')) return false;   // 부족하면 안내 후 중단(과금 표시 안 함)
   fresh.forEach(f=>{ f._billed = true; });
   return true;
