@@ -12,6 +12,8 @@
 <meta name="apple-mobile-web-app-title" content="DocFinder">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="mobile-web-app-capable" content="yes">
+<!-- 앱/웹 차이(.is-app + .web-only). defer 금지 — 숨길 요소가 잠깐 보였다 사라지면 안 된다. -->
+<script src="shared/components/app-mode.js"></script>
 <script src="shared/components/pwa.js" defer></script>
 
 <!-- 오픈소스 라이브러리: PDF 읽기 / 워드 읽기 / 엑셀 읽기·쓰기 -->
@@ -511,7 +513,7 @@
           <button type="button" class="am-item acct" id="amUsage"><svg class="icon" aria-hidden="true"><use href="#i-chart-column"></use></svg>사용량</button>
           <button type="button" class="am-item acct" id="amSettings"><svg class="icon" aria-hidden="true"><use href="#i-settings"></use></svg>설정</button>
           <button type="button" class="am-item theme-toggle"><svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg>다크 모드</button>
-          <a class="am-item acct" id="amUpgrade" href="pricing.html"><svg class="icon" aria-hidden="true"><use href="#i-zap"></use></svg>업그레이드</a>
+          <a class="am-item acct web-only" id="amUpgrade" href="pricing.html"><svg class="icon" aria-hidden="true"><use href="#i-zap"></use></svg>업그레이드</a>
           <div class="am-sep"></div>
           <a class="am-item guest" id="amLogin" href="login.html"><svg class="icon" aria-hidden="true"><use href="#i-arrow-right"></use></svg>로그인 / 시작하기</a>
           <button type="button" class="am-item acct" id="amLogout"><svg class="icon" aria-hidden="true"><use href="#i-log-out"></use></svg>로그아웃</button>
@@ -616,7 +618,9 @@
         <div id="limitNotice" style="display:none;margin-top:12px;padding:10px 14px;border-radius:8px;
           background:#fdf2ee;border:1px solid #f0d3c6;font-size:13px;color:var(--danger);">
           이번 달 크레딧이 부족해요 (<span id="limitNum"></span>).
-          <a href="pricing.html" target="_top" style="color:var(--danger);font-weight:700;">업그레이드</a>하면 더 많은 크레딧으로 계속할 수 있어요.
+          <!-- 앱에선 문장째 숨긴다(링크만 빼면 "…하면 더 많은 크레딧으로" 가 남아 깨짐).
+               앱엔 결제 진입점을 두지 않는다 — app-mode.js 참조. -->
+          <span class="web-only"><a href="pricing.html" target="_top" style="color:var(--danger);font-weight:700;">업그레이드</a>하면 더 많은 크레딧으로 계속할 수 있어요.</span>
         </div>
 
         <section id="results">
@@ -702,8 +706,16 @@
       <div class="srow"><span class="lbl">이름</span><span class="val" id="setName">-</span></div>
       <div class="srow"><span class="lbl">이메일</span><span class="val" id="setEmail">-</span></div>
       <div class="srow"><span class="lbl">플랜</span><span class="val" id="setPlan">-</span></div>
-      <div class="srow"><span class="lbl">구독 관리</span><a href="pricing.html" class="btn btn-ghost" style="padding:7px 14px;font-size:13px;">플랜 변경</a></div>
+      <div class="srow web-only"><span class="lbl">구독 관리</span><a href="pricing.html" class="btn btn-ghost" style="padding:7px 14px;font-size:13px;">플랜 변경</a></div>
       <div class="srow" id="downgradeRow" style="display:none;"><span class="lbl">Free로 전환</span><button class="btn btn-ghost" id="downgradeBtn" style="padding:7px 14px;font-size:13px;">구독 해지</button></div>
+
+      <!-- 정보·약관 — 웹의 푸터에 해당하는 것이 앱에선 여기 들어간다(모바일 표준 IA).
+           [보기]는 시트로 열린다(legal-sheet.js). 본문 원본은 terms.html 등 그대로 — 복사본 없음. -->
+      <div class="lbl2" style="margin-top:18px;">정보 · 약관</div>
+      <div class="srow"><span class="lbl">이용약관</span><button class="btn btn-ghost" data-legal="terms.html" style="padding:7px 14px;font-size:13px;">보기</button></div>
+      <div class="srow"><span class="lbl">개인정보처리방침</span><button class="btn btn-ghost" data-legal="privacy.html" style="padding:7px 14px;font-size:13px;">보기</button></div>
+      <div class="srow"><span class="lbl">환불·청약철회</span><button class="btn btn-ghost" data-legal="refund.html" style="padding:7px 14px;font-size:13px;">보기</button></div>
+      <div class="srow"><span class="lbl">사업자정보</span><button class="btn btn-ghost" data-legal="business" style="padding:7px 14px;font-size:13px;">보기</button></div>
     </div>
   </div>
 </div>
@@ -1921,5 +1933,11 @@ window.DF = window.DF || {};
   }
 })();
 </script>
+
+<!-- 앱 화면엔 푸터를 달지 않는다 — 푸터는 웹 패턴이고, 모바일에선 끝까지 스크롤하지 않아
+     도달조차 안 된다. 법적 문서·사업자정보는 [설정 > 정보·약관]에서 legal-sheet.js가 시트로 보여준다.
+     legal-footer.js는 사업자정보 데이터 소스로만 싣는다 — 슬롯(#legalFooter)이 없으면 푸터를 안 만든다. -->
+<script src="shared/components/legal-footer.js"></script>
+<script src="shared/components/legal-sheet.js"></script>
 </body>
 </html>

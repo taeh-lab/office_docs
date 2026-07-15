@@ -12,7 +12,8 @@
 <meta name="apple-mobile-web-app-title" content="DocFinder">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="mobile-web-app-capable" content="yes">
-<script src="shared/components/app-entry.js"></script>
+<!-- 앱이면 마케팅 랜딩 대신 도구로. defer 금지 — 렌더 전에 튕겨야 깜빡임이 없다. -->
+<script src="shared/components/app-mode.js" data-redirect-to="tool.html"></script>
 <script src="shared/components/pwa.js" defer></script>
 <meta name="description" content="여러 문서를 한 번에 올리면 지정한 단어가 어느 문서 몇 번째 줄에 있는지 찾아 엑셀로 뽑아주는 AI 문서 검색 도구. 포트폴리오 데모.">
 <!-- 배포 후에는 아래 og:image/url을 실제 도메인의 절대경로로 바꿔주세요 (상대경로는 크롤러에 따라 안 뜰 수 있음) -->

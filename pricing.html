@@ -12,6 +12,9 @@
 <meta name="apple-mobile-web-app-title" content="DocFinder">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="mobile-web-app-capable" content="yes">
+<!-- 앱엔 결제가 없다 → 요금제 페이지 자체가 존재하지 않는다. URL로 직접 들어와도 도구로 보낸다.
+     (버튼만 숨기면 "가격은 보이는데 살 수 없는" 화면이 된다.) 웹은 영향 없음. -->
+<script src="shared/components/app-mode.js" data-redirect-to="tool.html"></script>
 <script src="shared/components/pwa.js" defer></script>
 <link rel="stylesheet" href="shared/theme.css">
 <script src="shared/components/theme-toggle.js"></script>

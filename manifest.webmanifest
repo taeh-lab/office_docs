@@ -5,7 +5,7 @@
   "description": "여러 문서를 한 번에 훑어, 지정한 단어가 어느 문서 몇 번째 줄에 있는지 찾아 엑셀로 뽑아주는 AI 문서 검색 도구.",
   "lang": "ko",
   "dir": "ltr",
-  "start_url": "/",
+  "start_url": "/tool.html",
   "scope": "/",
   "display": "standalone",
   "orientation": "any",
