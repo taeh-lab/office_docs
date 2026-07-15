@@ -16,15 +16,29 @@
 <script src="shared/components/app-mode.js" data-redirect-to="tool.html"></script>
 <script src="shared/components/pwa.js" defer></script>
 <meta name="description" content="여러 문서를 한 번에 올리면 지정한 단어가 어느 문서 몇 번째 줄에 있는지 찾아 엑셀로 뽑아주는 AI 문서 검색 도구. 포트폴리오 데모.">
-<!-- 배포 후에는 아래 og:image/url을 실제 도메인의 절대경로로 바꿔주세요 (상대경로는 크롤러에 따라 안 뜰 수 있음) -->
+<!-- og:image·og:url은 절대 URL 필수(크롤러는 상대경로를 못 푼다). SVG는 카톡·페북·트위터가 렌더 안 하므로 JPEG.
+     manifest 아이콘에서 SVG 뺀 것(6174cb6)과 같은 이유. og-image.svg는 원본으로 남겨둠. -->
 <meta property="og:type" content="website">
+<meta property="og:site_name" content="DocFinder">
+<meta property="og:url" content="https://office-docs.vercel.app/">
 <meta property="og:title" content="DocFinder · AI 문서 검색 SaaS">
 <meta property="og:description" content="여러 문서를 한 번에 훑어서 단어를 찾아드립니다. PDF·Word·Excel 지원, 문서 유형 맞춤 AI 유사어 제안.">
-<meta property="og:image" content="shared/assets/og-image.svg">
+<meta property="og:image" content="https://office-docs.vercel.app/shared/assets/og-image.jpg">
+<meta property="og:image:type" content="image/jpeg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="DocFinder — 여러 문서를 한 번에 훑어서 단어를 찾아드리는 AI 문서 검색">
 <meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://office-docs.vercel.app/shared/assets/og-image.jpg">
 <link rel="stylesheet" href="shared/theme.css">
 <script src="shared/components/theme-toggle.js"></script>
 <style>
+  /* 히어로가 텍스트 없는 애니메이션이라 화면엔 최상위 제목이 없다.
+     검색엔진·스크린리더용 h1만 숨겨서 넣는다(디자인 불변). display:none은 안 됨 — 그럼 안 읽힌다. */
+  .sr-only{
+    position:absolute; width:1px; height:1px; padding:0; margin:-1px;
+    overflow:hidden; clip:rect(0 0 0 0); clip-path:inset(50%); white-space:nowrap; border:0;
+  }
   :root{
     /* 이 페이지에서만 쓰는 장식용 그라디언트 3색 — 데이터 인코딩이 아니라 배경 무드용이라
        dataviz 팔레트(카테고리/시퀀셜 색상)와는 별개로 관리한다. */
@@ -324,6 +338,7 @@
 <!-- 시네마틱 히어로 — 흩어진 문서 카드는 shared/components/hero-cine.js가 채운다.
      #scatter 해시로 열면 흩어진 상태에서 멈춤(연출 확인용). -->
 <section class="cine" id="cine" aria-label="문서 검색 데모">
+  <h1 class="sr-only">DocFinder — 여러 문서를 한 번에 훑는 AI 문서 검색</h1>
   <div class="stage" id="stage">
     <div class="eyebrow">AI 문서 검색</div>
     <div class="searchbox">
@@ -503,21 +518,15 @@
 <div class="portfolio-note">
   <div class="card">
     <div class="card-body">
-      포트폴리오 데모 프로젝트입니다. 로그인은 실제 서버 인증 없이 브라우저에 저장되는 방식이고, 결제는 Stripe <strong>테스트 모드</strong>로 연결되어 실제 청구가 발생하지 않습니다. 문서 검색·AI 유사어 제안 기능 자체는 실제로 동작합니다.
+      포트폴리오 데모 프로젝트입니다. 로그인은 실제 서버 인증 없이 브라우저에 저장되는 방식이고, 결제는 토스페이먼츠 <strong>테스트 모드</strong>로 연결되어 실제 청구가 발생하지 않습니다. 문서 검색·AI 유사어 제안 기능 자체는 실제로 동작합니다.
     </div>
   </div>
 </div>
 
-<footer class="site-footer">
-  © 2026 DocFinder · 개인 포트폴리오 프로젝트 · 사진: Unsplash (무료 라이선스)
-  <div style="margin-top:8px;display:flex;gap:14px;flex-wrap:wrap;">
-    <a href="terms.html">이용약관</a>
-    <a href="privacy.html"><strong>개인정보처리방침</strong></a>
-    <a href="refund.html">환불·청약철회</a>
-    <a href="changelog.html">업데이트 소식</a>
-    <a href="status.html">서비스 상태</a>
-  </div>
-</footer>
+<!-- 푸터는 shared/components/legal-footer.js가 렌더한다(사업자정보 = 전자상거래법 표시의무 포함).
+     손수 박지 말 것 — 페이지마다 어긋난다. 슬롯만 두면 된다. -->
+<div id="legalFooter"></div>
+<script src="shared/components/legal-footer.js"></script>
 
 <script src="shared/auth.js"></script>
 <script src="shared/components/command-palette.js"></script>
