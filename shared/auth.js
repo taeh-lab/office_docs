@@ -72,65 +72,18 @@ function initGoogleSignIn(buttonElId, onSuccess){
 }
 
 // ─────────────────────────────────────────────────────────────
-// 크레딧(토큰) 원장 — 날짜별로 이번 달 사용 크레딧을 기록(dwf_usage_days_{email}).
-// 기능 잠금 없이 "쓴 만큼 차감"하는 용량 비례 모델. 과금 방식은 config.js의 CREDIT_MODEL,
-// 플랜별 월 지급량은 PLANS[plan].credits.
-// tool.html(동작 시 차감)과 dashboard.html(잔액 게이지·일별 차트)이 같이 쓴다.
-// getUsage = 이번 달 사용 크레딧 합계(과거 "검색 횟수"에서 의미만 크레딧으로 일반화).
+// 크레딧은 이 파일을 떠났다 → shared/credit.js(코어) + shared/credit-rules.js(규칙).
+//
+// 왜 옮겼나: 크레딧이 계정(email)과 요금제(plan)를 알고 있었다. 그래서 판정에 user가 필요했고,
+//   user가 없으면 예외처리가 필요했고, 그게 UI의 로그인 게이팅(.acct)으로 번져
+//   앱에서 비로그인 사용자가 법적 문서에 도달 못 하는 구멍을 만들었다(057e633에서 급히 막음).
+//   골드는 플레이어의 직업을 몰라야 한다.
+// 그리고 여기 있던 `typeof PLANS === 'undefined' → return null`(= 무제한)은
+//   설정 누락을 조용한 과금 해제로 만들었다. auth.js가 PLANS 없는 페이지에도 실려서 생긴 가드였다.
+//   크레딧이 tool.html에만 실리는 파일로 나가면서 그 가드는 삭제가 아니라 소멸했다.
+//
+// 이 파일에 크레딧을 다시 넣지 말 것 — tools/check-credit.mjs가 exit 1 한다.
 // ─────────────────────────────────────────────────────────────
-function usageMapKey(email){ return `dwf_usage_days_${email}`; }
-function usageMap(email){
-  try { return JSON.parse(localStorage.getItem(usageMapKey(email))) || {}; }
-  catch { return {}; }
-}
-function dateKey(d){
-  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-}
-function getUsage(email){
-  const ym = dateKey(new Date()).slice(0, 7);
-  const map = usageMap(email);
-  return Object.entries(map).reduce((sum, [day, count]) => day.startsWith(ym) ? sum + count : sum, 0);
-}
-
-// 플랜의 월 지급 크레딧 (null = 무제한). 모르는 플랜이면 free 취급.
-function planCredits(plan){
-  if(typeof PLANS === 'undefined') return null;
-  const p = PLANS[plan] || PLANS.free;
-  return p ? p.credits : null;
-}
-// 이번 달 남은 크레딧 (무제한이면 Infinity)
-function creditBalance(email, plan){
-  const allow = planCredits(plan);
-  if(allow == null) return Infinity;
-  return Math.max(0, allow - getUsage(email));
-}
-// n크레딧을 쓸 수 있는지 (잔액 확인)
-function canSpend(email, plan, n){
-  const allow = planCredits(plan);
-  if(allow == null) return true;
-  return getUsage(email) + n <= allow;
-}
-// n크레딧 차감하고 이번 달 사용 합계 반환
-function spendCredits(email, n){
-  const map = usageMap(email);
-  const key = dateKey(new Date());
-  map[key] = (map[key] || 0) + n;
-  localStorage.setItem(usageMapKey(email), JSON.stringify(map));
-  return getUsage(email);
-}
-// 하위호환: 기존 incUsage(email) = 1크레딧 차감
-function incUsage(email){ return spendCredits(email, 1); }
-// 이번 달 1일부터 오늘까지 일별 검색 횟수 — 대시보드 사용량 차트용
-function getUsageHistory(email){
-  const map = usageMap(email);
-  const now = new Date();
-  const out = [];
-  for(let d = 1; d <= now.getDate(); d++){
-    const key = dateKey(new Date(now.getFullYear(), now.getMonth(), d));
-    out.push({ day: d, count: map[key] || 0 });
-  }
-  return out;
-}
 
 function decodeJwt(token){
   try{
