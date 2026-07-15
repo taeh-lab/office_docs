@@ -62,7 +62,13 @@ function initGoogleSignIn(buttonElId, onSuccess){
       onSuccess({ email: payload.email, name: payload.name || payload.email.split('@')[0], picture: payload.picture || '' });
     }
   });
-  google.accounts.id.renderButton(el, { theme:'outline', size:'large', width:320, text:'continue_with' });
+  // GSI의 width는 px 고정값만 받는다(퍼센트 불가) → 컨테이너 폭에 맞춰 계산한다.
+  //   320 고정이었을 때: 375px 화면의 가용 폭이 270px이라 버튼이 카드를 22px 넘쳐 잘렸다
+  //   (.authcard가 overflow-x:hidden이라 스크롤이 아니라 잘림. 실측: 버튼 right 373 vs 카드 right 351).
+  //   라이브 실측 검증: width 270 → 버튼 right 323, 잘림 0.
+  // GSI 허용 범위 200~400. 컨테이너 폭을 못 재면(0) 기존 값 320으로 폴백.
+  const w = Math.max(200, Math.min(400, Math.round(el.getBoundingClientRect().width) || 320));
+  google.accounts.id.renderButton(el, { theme:'outline', size:'large', width:w, text:'continue_with' });
 }
 
 // ─────────────────────────────────────────────────────────────
