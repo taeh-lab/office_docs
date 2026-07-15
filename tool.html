@@ -110,6 +110,10 @@
   .am-name{font-size:14px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .am-email{font-size:11.5px;color:var(--muted);margin:2px 0 8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .am-plan{display:inline-block;font-size:11px;font-weight:700;padding:2px 9px;border-radius:20px;background:var(--accent-soft);color:var(--accent);}
+  /* display를 주면 [hidden](브라우저 기본 스타일이라 우선순위 최하)이 무력화된다.
+     이게 없으면 게스트에게 빈 배지(20x6 회색 알약)가 뜬다. 메뉴가 화면 밖으로 잘려 있어서
+     여태 아무도 못 봤을 뿐. 이 파일의 .avatar-menu[hidden]·.modal[hidden]·.home-credit[hidden]과 같은 관례. */
+  .am-plan[hidden]{display:none;}
   .am-item{display:flex;align-items:center;gap:10px;width:100%;padding:9px 10px;border-radius:8px;border:none;background:none;font-family:var(--sans);font-size:13.5px;color:var(--ink);cursor:pointer;text-align:left;text-decoration:none;}
   .am-item:hover{background:var(--accent-soft);color:var(--accent);}
   .am-item .icon{width:16px;height:16px;color:var(--muted);flex:none;}
@@ -406,6 +410,13 @@
     .app{grid-template-rows:auto 1fr;}
     .topbar{gap:10px;padding:0 14px;min-height:52px;padding-top:env(safe-area-inset-top);}
     .modes{display:none;}
+    /* 데스크톱에선 .modes의 auto 마진(약 405px)이 .topright를 오른쪽 끝으로 밀어준다.
+       모바일에선 .modes를 숨기니 그 스페이서가 사라져 아바타가 로고 옆으로 딸려온다
+       (실측 375px: 아바타 left 113, 화면 오른쪽 끝에서 230px). 그러면 .avatar-menu{right:0}이
+       아바타 기준으로 왼쪽에 열려서 화면 밖으로 87px 잘린다.
+       → 스페이서를 명시해 아바타를 제자리로. 메뉴 CSS는 손댈 필요 없어진다.
+       실측: 아바타 113→329(오른쪽 끝 14px) · 메뉴 -87..145 → 129..361(넘침 0). */
+    .topright{margin-left:auto;}
     .brand{font-size:15px;}
     .body{grid-template-columns:1fr;}
     /* 본문: 하단 탭바 높이만큼 아래 여백 */
@@ -511,7 +522,10 @@
             <span class="badge am-plan" id="amPlan" hidden></span>
           </div>
           <button type="button" class="am-item acct" id="amUsage"><svg class="icon" aria-hidden="true"><use href="#i-chart-column"></use></svg>사용량</button>
-          <button type="button" class="am-item acct" id="amSettings"><svg class="icon" aria-hidden="true"><use href="#i-settings"></use></svg>설정</button>
+          <!-- .acct 없음 = 비로그인도 보인다. 여기가 앱에서 약관·개인정보·사업자정보에 닿는 유일한 경로다
+               (앱엔 푸터가 없다 — legal-sheet.js 참조). 로그인 여부로 막으면 비로그인 사용자가
+               법적 문서에 도달 못 해 Play 요구사항("앱 자체에 개인정보처리방침 게시") 위반. -->
+          <button type="button" class="am-item" id="amSettings"><svg class="icon" aria-hidden="true"><use href="#i-settings"></use></svg>설정</button>
           <button type="button" class="am-item theme-toggle"><svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg>다크 모드</button>
           <a class="am-item acct web-only" id="amUpgrade" href="pricing.html"><svg class="icon" aria-hidden="true"><use href="#i-zap"></use></svg>업그레이드</a>
           <div class="am-sep"></div>
@@ -1814,7 +1828,7 @@ window.DF = window.DF || {};
   } else {
     document.getElementById('amName').textContent = '게스트';
     document.getElementById('amEmail').textContent = '로그인하면 크레딧·예약이 저장돼요';
-    av.textContent = 'D';
+    av.textContent = '';   // 게스트는 이니셜 없이 빈 아바타 (기존엔 'D'가 박혀 있어 계정처럼 보였다)
   }
 
   av.addEventListener('click', (e)=>{ e.stopPropagation(); menu.hidden = !menu.hidden; });
@@ -1864,7 +1878,14 @@ window.DF = window.DF || {};
     }
   }
   function refreshSettings(){
-    if(!user) return;
+    // 게스트도 설정을 연다(법적 문서가 여기 있다). 계정 행을 '-'로 두면 고장난 것처럼 보이므로 채운다.
+    if(!user){
+      document.getElementById('setName').textContent = '게스트';
+      document.getElementById('setEmail').textContent = '로그인하지 않음';
+      document.getElementById('setPlan').textContent = '로그인 없이 사용 중';
+      document.getElementById('downgradeRow').style.display = 'none';
+      return;
+    }
     document.getElementById('setName').textContent = user.name || '-';
     document.getElementById('setEmail').textContent = user.email;
     document.getElementById('setPlan').textContent = PLANS[user.plan] ? `${PLANS[user.plan].label} (${PLANS[user.plan].priceLabel})` : user.plan;
